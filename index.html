@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Substance Tracker</title>
+<meta name="theme-color" content="#0b0f17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #111827; --muted: #6b7280;
+    --border: #e5e7eb; --accent: #d97706; --accent-text: #ffffff;
+    --ok: #16a34a; --warn: #dc2626; --chip: #f3f4f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0f17; --card: #151b26; --text: #e5e7eb; --muted: #9ca3af;
+      --border: #263041; --accent: #f59e0b; --accent-text: #111827;
+      --ok: #22c55e; --warn: #f87171; --chip: #1f2937;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b0f17; --card: #151b26; --text: #e5e7eb; --muted: #9ca3af;
+    --border: #263041; --accent: #f59e0b; --accent-text: #111827;
+    --ok: #22c55e; --warn: #f87171; --chip: #1f2937;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    padding: calc(12px + env(safe-area-inset-top)) 16px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 640px; margin: 0 auto; padding: 12px 16px; }
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    display: flex; background: var(--card); border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav button {
+    flex: 1; background: none; border: 0; color: var(--muted);
+    padding: 10px 0 12px; font-size: 12px; cursor: pointer;
+  }
+  nav button span { display: block; font-size: 20px; line-height: 1.2; }
+  nav button.active { color: var(--accent); font-weight: 600; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .grow { flex: 1; min-width: 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+  h2 { font-size: 16px; margin: 18px 0 8px; }
+  h2:first-child { margin-top: 4px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  button.btn, a.btn {
+    border: 1px solid var(--border); background: var(--chip); color: var(--text);
+    border-radius: 10px; padding: 9px 14px; font-size: 14px; cursor: pointer;
+    text-decoration: none; display: inline-block;
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button.danger { color: var(--warn); }
+  button.small { padding: 5px 10px; font-size: 13px; }
+  button:disabled { opacity: .5; }
+  .done { color: var(--ok); font-weight: 600; font-size: 14px; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+  .badge.warn { color: var(--warn); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select, textarea {
+    width: 100%; font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px;
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .days { display: flex; flex-wrap: wrap; gap: 6px; }
+  .days label { margin: 0; display: flex; align-items: center; gap: 4px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--text); }
+  .days input { width: auto; }
+  .empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+  .entry { padding: 10px 0; border-top: 1px solid var(--border); }
+  .entry:first-of-type { border-top: 0; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  dialog {
+    border: 1px solid var(--border); border-radius: 16px; background: var(--card); color: var(--text);
+    width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 40px); padding: 16px;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog h3 { margin: 0 0 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { text-align: left; padding: 6px 4px; border-top: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; border-top: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .notice { font-size: 13px; color: var(--muted); border-left: 3px solid var(--accent); padding: 6px 10px; margin: 10px 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 14px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Heute</h1>
+  <div class="sub" id="subtitle"></div>
+</header>
+<main id="view"></main>
+<nav>
+  <button data-tab="today" class="active"><span>✓</span>Heute</button>
+  <button data-tab="history"><span>☰</span>Verlauf</button>
+  <button data-tab="plan"><span>⚙</span>Plan</button>
+  <button data-tab="health"><span>♥</span>Werte</button>
+  <button data-tab="data"><span>⇅</span>Daten</button>
+</nav>
+<dialog id="dlg"></dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ---------- Storage ----------
+const KEY = 'substance-tracker-v1';
+const SITES = ['Glute links', 'Glute rechts', 'Quad links', 'Quad rechts', 'Delt links', 'Delt rechts', 'Ventroglute links', 'Ventroglute rechts', 'Lat links', 'Lat rechts', 'Bauch (subkutan)', 'Sonstige'];
+const UNITS = ['mg', 'mcg', 'IE', 'ml', 'Tabl.', 'Kps.'];
+const FORMS = { inj: 'Injektion', oral: 'Oral', sc: 'Subkutan', other: 'Sonstiges' };
+const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#6366f1', '#f97316'];
+const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+let db = load();
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      return { substances: d.substances || [], logs: d.logs || [], health: d.health || [] };
+    }
+  } catch (e) { /* storage unavailable or corrupted */ }
+  return { substances: [], logs: [], health: [] };
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch (e) { toast('Speichern fehlgeschlagen – bitte Backup exportieren!'); }
+}
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+// ---------- Helpers ----------
+const $ = s => document.querySelector(s);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseDay = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const todayKey = () => dayKey(new Date());
+const daysBetween = (a, b) => Math.round((parseDay(b) - parseDay(a)) / 86400000);
+const addDays = (k, n) => { const d = parseDay(k); d.setDate(d.getDate() + n); return dayKey(d); };
+const fmtDay = k => parseDay(k).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+const fmtTime = iso => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+const fmtNum = n => (Math.round(n * 100) / 100).toLocaleString('de-DE');
+const localIso = d => `${dayKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const subById = id => db.substances.find(s => s.id === id);
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function doseText(s, amount) {
+  let t = `${fmtNum(amount)} ${s.unit}`;
+  if (s.conc && s.unit === 'mg') t += ` (${fmtNum(amount / s.conc)} ml)`;
+  return t;
+}
+
+function scheduleText(s) {
+  const tpd = s.timesPerDay > 1 ? `, ${s.timesPerDay}× täglich` : '';
+  if (s.mode === 'weekdays') return (s.weekdays.length ? s.weekdays.map(d => WEEKDAYS[d]).join(', ') : 'keine Tage') + tpd;
+  if (s.mode === 'asneeded') return 'Nach Bedarf';
+  if (s.interval === 1) return 'Täglich' + tpd;
+  if (s.interval === 7) return 'Wöchentlich' + tpd;
+  return `Alle ${String(s.interval).replace('.', ',')} Tage` + tpd;
+}
+
+// Is the substance scheduled on this day?
+function isDue(s, k) {
+  if (!s.active || s.mode === 'asneeded') return false;
+  if (s.start && k < s.start) return false;
+  if (s.end && k > s.end) return false;
+  if (s.mode === 'weekdays') return s.weekdays.includes(parseDay(k).getDay());
+  // Interval mode; supports e.g. 3.5 days (E3.5D) by rounding the due days.
+  const diff = daysBetween(s.start || k, k);
+  const iv = s.interval || 1;
+  if (Number.isInteger(iv)) return diff % iv === 0;
+  const n = Math.round(diff / iv);
+  return Math.round(n * iv) === diff;
+}
+
+function nextDue(s, from) {
+  for (let i = 0; i < 60; i++) { const k = addDays(from, i); if (isDue(s, k)) return k; }
+  return null;
+}
+
+const logsOn = k => db.logs.filter(l => l.time.slice(0, 10) === k);
+
+// Pick the injection site used longest ago (or never).
+function suggestSite() {
+  const last = {};
+  for (const l of db.logs) if (l.site && (!last[l.site] || l.time > last[l.site])) last[l.site] = l.time;
+  const opts = SITES.filter(s => s !== 'Sonstige' && s !== 'Bauch (subkutan)');
+  return opts.reduce((best, s) => ((last[s] || '') < (last[best] || '') ? s : best), opts[0]);
+}
+
+// ---------- Views ----------
+let tab = 'today';
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); }));
+
+function render() {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  const titles = { today: 'Heute', history: 'Verlauf', plan: 'Plan & Substanzen', health: 'Gesundheitswerte', data: 'Daten & Backup' };
+  $('#title').textContent = titles[tab];
+  $('#subtitle').textContent = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  ({ today: renderToday, history: renderHistory, plan: renderPlan, health: renderHealth, data: renderData })[tab]();
+}
+
+function renderToday() {
+  const k = todayKey();
+  const todays = logsOn(k);
+  const due = db.substances.filter(s => isDue(s, k));
+  let html = '';
+
+  if (!db.substances.length) {
+    html += `<div class="card empty">Noch keine Substanzen angelegt.<br><br>
+      <button class="btn primary" onclick="tab='plan';render();editSubstance()">Erste Substanz anlegen</button></div>`;
+  }
+
+  if (due.length) {
+    html += `<h2>Heute fällig</h2>`;
+    for (const s of due) {
+      const done = todays.filter(l => l.subId === s.id).length;
+      const need = s.timesPerDay || 1;
+      html += `<div class="card row">
+        <div class="dot" style="background:${esc(s.color)}"></div>
+        <div class="grow"><div class="name">${esc(s.name)}</div>
+          <div class="muted">${doseText(s, s.dose)} · ${FORMS[s.form]}</div></div>
+        ${done >= need
+          ? `<span class="done">✓ erledigt${need > 1 ? ` ${done}/${need}` : ''}</span>`
+          : `<button class="btn primary" onclick="quickLog('${s.id}')">${need > 1 ? `${done}/${need} ` : ''}Erledigt</button>`}
+      </div>`;
+    }
+  } else if (db.substances.length) {
+    html += `<div class="card empty">Heute ist laut Plan nichts fällig.</div>`;
+  }
+
+  // Missed doses of the last 7 days
+  const missed = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = addDays(k, -i);
+    for (const s of db.substances) {
+      if (!isDue(s, d)) continue;
+      const done = logsOn(d).filter(l => l.subId === s.id).length;
+      if (done < (s.timesPerDay || 1)) missed.push({ s, d });
+    }
+  }
+  if (missed.length) {
+    html += `<h2>Nicht eingetragen (letzte 7 Tage)</h2><div class="card">`;
+    for (const { s, d } of missed) {
+      html += `<div class="entry row"><div class="dot" style="background:${esc(s.color)}"></div>
+        <div class="grow"><div class="name">${esc(s.name)}</div><div class="muted">${fmtDay(d)}</div></div>
+        <button class="btn small" onclick="editLog(null,'${s.id}','${d}')">Nachtragen</button></div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `<h2>Heute eingetragen</h2>`;
+  html += todays.length ? `<div class="card">${todays.sort((a, b) => a.time.localeCompare(b.time)).map(logRow).join('')}</div>`
+    : `<div class="card empty">Noch nichts eingetragen.</div>`;
+
+  html += `<div class="actions"><button class="btn" onclick="editLog()">+ Manuell eintragen</button></div>`;
+
+  const upcoming = db.substances.filter(s => s.active && s.mode !== 'asneeded')
+    .map(s => ({ s, n: nextDue(s, addDays(k, 1)) })).filter(x => x.n).sort((a, b) => a.n.localeCompare(b.n));
+  if (upcoming.length) {
+    html += `<h2>Als Nächstes</h2><div class="card">` + upcoming.map(({ s, n }) =>
+      `<div class="entry row"><div class="dot" style="background:${esc(s.color)}"></div>
+        <div class="grow name">${esc(s.name)}</div><span class="muted">${fmtDay(n)}</span></div>`).join('') + `</div>`;
+  }
+  $('#view').innerHTML = html;
+}
+
+function logRow(l) {
+  const s = subById(l.subId);
+  const name = s ? s.name : (l.subName || 'Gelöscht');
+  const unit = s ? s.unit : (l.unit || '');
+  return `<div class="entry row">
+    <div class="dot" style="background:${esc(s ? s.color : '#888')}"></div>
+    <div class="grow"><div class="name">${esc(name)} <span class="muted">${fmtNum(l.amount)} ${esc(unit)}</span></div>
+      <div class="muted">${fmtTime(l.time)}${l.site ? ' · ' + esc(l.site) : ''}${l.note ? ' · ' + esc(l.note) : ''}</div></div>
+    <button class="btn small" onclick="editLog('${l.id}')">Bearbeiten</button></div>`;
+}
+
+function renderHistory() {
+  let html = '';
+  // Weekly totals
+  const k = todayKey(), from = addDays(k, -6);
+  const totals = {};
+  for (const l of db.logs) {
+    const d = l.time.slice(0, 10);
+    if (d >= from && d <= k) totals[l.subId] = (totals[l.subId] || 0) + l.amount;
+  }
+  const rows = Object.entries(totals).map(([id, t]) => ({ s: subById(id), t })).filter(x => x.s);
+  if (rows.length) {
+    html += `<h2>Summe letzte 7 Tage</h2><div class="card"><table><tr><th>Substanz</th><th class="num">Gesamt</th><th class="num">Ø / Tag</th></tr>` +
+      rows.map(({ s, t }) => `<tr><td>${esc(s.name)}</td><td class="num">${fmtNum(t)} ${esc(s.unit)}</td><td class="num">${fmtNum(t / 7)} ${esc(s.unit)}</td></tr>`).join('') +
+      `</table></div>`;
+  }
+
+  const filter = renderHistory.filter || '';
+  html += `<h2>Alle Einträge</h2><select onchange="renderHistory.filter=this.value;renderHistory()">
+    <option value="">Alle Substanzen</option>
+    ${db.substances.map(s => `<option value="${s.id}" ${s.id === filter ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+  </select><div style="height:10px"></div>`;
+  const logs = db.logs.filter(l => !filter || l.subId === filter).sort((a, b) => b.time.localeCompare(a.time));
+  if (!logs.length) html += `<div class="card empty">Keine Einträge.</div>`;
+  const byDay = {};
+  for (const l of logs.slice(0, 500)) (byDay[l.time.slice(0, 10)] ||= []).push(l);
+  for (const [d, ls] of Object.entries(byDay)) html += `<div class="muted" style="margin:10px 2px 4px">${fmtDay(d)}</div><div class="card">${ls.map(logRow).join('')}</div>`;
+  $('#view').innerHTML = html;
+}
+
+function renderPlan() {
+  let html = `<div class="actions" style="margin-top:0"><button class="btn primary" onclick="editSubstance()">+ Substanz hinzufügen</button></div>`;
+  const groups = [['Aktiv', db.substances.filter(s => s.active)], ['Pausiert / beendet', db.substances.filter(s => !s.active)]];
+  for (const [label, list] of groups) {
+    if (!list.length) continue;
+    html += `<h2>${label}</h2>`;
+    for (const s of list) {
+      const weekly = weeklyDose(s);
+      html += `<div class="card row">
+        <div class="dot" style="background:${esc(s.color)}"></div>
+        <div class="grow"><div class="name">${esc(s.name)}</div>
+          <div class="muted">${doseText(s, s.dose)} · ${scheduleText(s)} · ${FORMS[s.form]}</div>
+          ${weekly != null ? `<div class="muted">≈ ${fmtNum(weekly)} ${esc(s.unit)} / Woche</div>` : ''}
+          ${s.notes ? `<div class="muted">${esc(s.notes)}</div>` : ''}</div>
+        <button class="btn small" onclick="editSubstance('${s.id}')">Bearbeiten</button></div>`;
+    }
+  }
+  if (!db.substances.length) html += `<div class="card empty">Lege hier alle Substanzen aus deinem Plan an (Name, Dosis, Rhythmus). Danach kannst du sie auf „Heute“ mit einem Tipp abhaken.</div>`;
+  $('#view').innerHTML = html;
+}
+
+function weeklyDose(s) {
+  const t = s.timesPerDay || 1;
+  if (s.mode === 'asneeded') return null;
+  if (s.mode === 'weekdays') return s.dose * s.weekdays.length * t;
+  return s.dose * 7 / (s.interval || 1) * t;
+}
+
+function renderHealth() {
+  let html = `<div class="actions" style="margin-top:0"><button class="btn primary" onclick="editHealth()">+ Werte eintragen</button></div>
+    <div class="notice">Blutdruck, Ruhepuls und Gewicht regelmäßig festhalten – und Blutbild-Ergebnisse als Notiz – macht die Gespräche mit deinem Arzt deutlich einfacher.</div>`;
+  const list = [...db.health].sort((a, b) => b.time.localeCompare(a.time));
+  if (!list.length) html += `<div class="card empty">Noch keine Werte.</div>`;
+  else {
+    html += `<div class="card"><table><tr><th>Datum</th><th class="num">kg</th><th class="num">RR</th><th class="num">Puls</th><th></th></tr>` +
+      list.map(h => `<tr><td>${parseDay(h.time.slice(0, 10)).toLocaleDateString('de-DE')}${h.note ? `<div class="muted">${esc(h.note)}</div>` : ''}</td>
+        <td class="num">${h.weight != null ? fmtNum(h.weight) : '–'}</td>
+        <td class="num">${h.sys != null ? `${h.sys}/${h.dia ?? '–'}` : '–'}</td>
+        <td class="num">${h.pulse ?? '–'}</td>
+        <td class="num"><button class="btn small" onclick="editHealth('${h.id}')">✎</button></td></tr>`).join('') + `</table></div>`;
+  }
+  $('#view').innerHTML = html;
+}
+
+function renderData() {
+  $('#view').innerHTML = `
+    <div class="card"><div class="name">Wo liegen meine Daten?</div>
+      <div class="muted">Alles wird nur lokal auf diesem Gerät im Browser gespeichert – nichts wird hochgeladen. Wenn du den Browser-Speicher löschst oder das Handy wechselst, sind die Daten weg. Exportiere deshalb regelmäßig ein Backup.</div></div>
+    <div class="card"><div class="name">Backup</div>
+      <div class="actions">
+        <button class="btn primary" onclick="exportJson()">Backup exportieren (JSON)</button>
+        <button class="btn" onclick="$('#importFile').click()">Backup importieren</button>
+        <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importJson(this.files[0])">
+      </div></div>
+    <div class="card"><div class="name">Export für Tabelle / Arzt</div>
+      <div class="actions"><button class="btn" onclick="exportCsv()">Einträge als CSV</button></div></div>
+    <div class="card"><div class="name">Darstellung</div>
+      <div class="actions">
+        <button class="btn" onclick="setTheme('')">Automatisch</button>
+        <button class="btn" onclick="setTheme('light')">Hell</button>
+        <button class="btn" onclick="setTheme('dark')">Dunkel</button></div></div>
+    <div class="card"><div class="muted">${db.substances.length} Substanzen · ${db.logs.length} Einträge · ${db.health.length} Messungen</div>
+      <div class="actions"><button class="btn danger" onclick="wipe()">Alle Daten löschen</button></div></div>`;
+}
+
+// ---------- Actions ----------
+function quickLog(subId) {
+  const s = subById(subId);
+  const needsSite = s.form === 'inj';
+  db.logs.push({ id: uid(), subId, amount: s.dose, time: localIso(new Date()), site: needsSite ? suggestSite() : (s.form === 'sc' ? 'Bauch (subkutan)' : ''), note: '' });
+  save(); render();
+  toast(`${s.name} eingetragen${needsSite ? ' – Stelle: ' + db.logs[db.logs.length - 1].site : ''}`);
+}
+
+function editLog(id, presetSub, presetDay) {
+  const l = id ? db.logs.find(x => x.id === id) : null;
+  const subs = db.substances;
+  if (!subs.length && !l) { toast('Lege zuerst eine Substanz im Plan an.'); return; }
+  const s0 = l ? subById(l.subId) : subById(presetSub) || subs.find(s => s.active) || subs[0];
+  const time = l ? l.time : (presetDay ? `${presetDay}T09:00` : localIso(new Date()));
+  const dlg = $('#dlg');
+  dlg.innerHTML = `<form method="dialog" id="f">
+    <h3>${l ? 'Eintrag bearbeiten' : 'Neuer Eintrag'}</h3>
+    <label>Substanz</label>
+    <select name="subId">${subs.map(s => `<option value="${s.id}" ${s0 && s.id === s0.id ? 'selected' : ''}>${esc(s.name)} (${esc(s.unit)})</option>`).join('')}</select>
+    <div class="grid2">
+      <div><label>Menge</label><input name="amount" inputmode="decimal" value="${l ? l.amount : (s0 ? s0.dose : '')}"></div>
+      <div><label>Zeitpunkt</label><input name="time" type="datetime-local" value="${time}"></div>
+    </div>
+    <label>Injektionsstelle</label>
+    <select name="site"><option value="">–</option>${SITES.map(x => `<option ${l && l.site === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+    <div class="muted" style="margin-top:4px">Vorschlag (am längsten nicht benutzt): ${esc(suggestSite())}</div>
+    <label>Notiz</label><input name="note" value="${esc(l ? l.note : '')}" placeholder="z. B. PIP, Charge, Nebenwirkungen">
+    <div class="actions">
+      <button class="btn primary" value="save">Speichern</button>
+      <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
+      ${l ? `<button class="btn danger" value="delete" formnovalidate>Löschen</button>` : ''}
+    </div></form>`;
+  const f = dlg.querySelector('#f');
+  if (!l) {
+    const sel = f.subId, setSite = () => { const s = subById(sel.value); f.amount.value = s.dose; f.site.value = s.form === 'inj' ? suggestSite() : (s.form === 'sc' ? 'Bauch (subkutan)' : ''); };
+    sel.addEventListener('change', setSite); setSite();
+  }
+  dlg.onclose = () => {
+    if (dlg.returnValue === 'delete') {
+      if (confirm('Eintrag löschen?')) { db.logs = db.logs.filter(x => x.id !== id); save(); render(); }
+      return;
+    }
+    if (dlg.returnValue !== 'save') return;
+    const amount = num(f.amount.value);
+    if (amount == null || !f.time.value) { toast('Menge und Zeitpunkt angeben'); return; }
+    const data = { subId: f.subId.value, amount, time: f.time.value, site: f.site.value, note: f.note.value.trim() };
+    if (l) Object.assign(l, data); else db.logs.push({ id: uid(), ...data });
+    save(); render(); toast('Gespeichert');
+  };
+  dlg.returnValue = ''; dlg.showModal();
+}
+
+function editSubstance(id) {
+  const s = id ? subById(id) : null;
+  const v = s || { name: '', form: 'inj', dose: '', unit: 'mg', conc: '', mode: 'interval', interval: 7, weekdays: [], timesPerDay: 1, start: todayKey(), end: '', active: true, notes: '', color: COLORS[db.substances.length % COLORS.length] };
+  const dlg = $('#dlg');
+  dlg.innerHTML = `<form method="dialog" id="f">
+    <h3>${s ? 'Substanz bearbeiten' : 'Neue Substanz'}</h3>
+    <label>Name</label><input name="name" value="${esc(v.name)}" placeholder="z. B. Testosteron Enanthat" required>
+    <div class="grid2">
+      <div><label>Form</label><select name="form">${Object.entries(FORMS).map(([k, t]) => `<option value="${k}" ${v.form === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div><label>Farbe</label><input name="color" type="color" value="${esc(v.color)}" style="height:41px;padding:4px"></div>
+      <div><label>Dosis pro Einnahme</label><input name="dose" inputmode="decimal" value="${v.dose}" required></div>
+      <div><label>Einheit</label><select name="unit">${UNITS.map(u => `<option ${v.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
+    </div>
+    <label>Konzentration (mg/ml, optional – zeigt dann die ml an)</label>
+    <input name="conc" inputmode="decimal" value="${v.conc || ''}" placeholder="z. B. 250">
+    <label>Rhythmus</label>
+    <select name="mode">
+      <option value="interval" ${v.mode === 'interval' ? 'selected' : ''}>Alle X Tage</option>
+      <option value="weekdays" ${v.mode === 'weekdays' ? 'selected' : ''}>Bestimmte Wochentage</option>
+      <option value="asneeded" ${v.mode === 'asneeded' ? 'selected' : ''}>Nach Bedarf (kein fester Plan)</option>
+    </select>
+    <div id="ivBox"><label>Alle wie viele Tage? (1 = täglich, 3,5 = E3.5D, 7 = wöchentlich)</label>
+      <input name="interval" inputmode="decimal" value="${String(v.interval).replace('.', ',')}"></div>
+    <div id="wdBox"><label>Wochentage</label><div class="days">
+      ${[1, 2, 3, 4, 5, 6, 0].map(d => `<label><input type="checkbox" name="wd" value="${d}" ${v.weekdays.includes(d) ? 'checked' : ''}>${WEEKDAYS[d]}</label>`).join('')}</div></div>
+    <div class="grid2">
+      <div><label>Mal pro Tag</label><input name="tpd" inputmode="numeric" value="${v.timesPerDay}"></div>
+      <div><label>Aktiv</label><select name="active"><option value="1" ${v.active ? 'selected' : ''}>Ja</option><option value="0" ${!v.active ? 'selected' : ''}>Nein (pausiert)</option></select></div>
+      <div><label>Startdatum</label><input name="start" type="date" value="${v.start || ''}"></div>
+      <div><label>Enddatum (optional)</label><input name="end" type="date" value="${v.end || ''}"></div>
+    </div>
+    <label>Notizen</label><textarea name="notes" placeholder="z. B. Hersteller, Charge, Zweck">${esc(v.notes)}</textarea>
+    <div class="actions">
+      <button class="btn primary" value="save">Speichern</button>
+      <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
+      ${s ? `<button class="btn danger" value="delete" formnovalidate>Löschen</button>` : ''}
+    </div></form>`;
+  const f = dlg.querySelector('#f');
+  const sync = () => { $('#ivBox').style.display = f.mode.value === 'interval' ? '' : 'none'; $('#wdBox').style.display = f.mode.value === 'weekdays' ? '' : 'none'; };
+  f.mode.addEventListener('change', sync); sync();
+  dlg.onclose = () => {
+    if (dlg.returnValue === 'delete') {
+      if (confirm(`„${s.name}“ löschen? Bisherige Einträge bleiben im Verlauf erhalten.`)) {
+        db.logs.forEach(l => { if (l.subId === s.id) { l.subName = s.name; l.unit = s.unit; } });
+        db.substances = db.substances.filter(x => x.id !== id); save(); render();
+      }
+      return;
+    }
+    if (dlg.returnValue !== 'save') return;
+    const dose = num(f.dose.value), interval = num(f.interval.value) || 1;
+    if (!f.name.value.trim() || dose == null) { toast('Name und Dosis angeben'); return; }
+    const data = {
+      name: f.name.value.trim(), form: f.form.value, color: f.color.value, dose, unit: f.unit.value,
+      conc: num(f.conc.value), mode: f.mode.value, interval: Math.max(0.5, interval),
+      weekdays: [...f.querySelectorAll('[name=wd]:checked')].map(c => Number(c.value)),
+      timesPerDay: Math.max(1, Math.round(num(f.tpd.value) || 1)), active: f.active.value === '1',
+      start: f.start.value || todayKey(), end: f.end.value, notes: f.notes.value.trim()
+    };
+    if (s) Object.assign(s, data); else db.substances.push({ id: uid(), ...data });
+    save(); render(); toast('Gespeichert');
+  };
+  dlg.returnValue = ''; dlg.showModal();
+}
+
+function editHealth(id) {
+  const h = id ? db.health.find(x => x.id === id) : null;
+  const dlg = $('#dlg');
+  dlg.innerHTML = `<form method="dialog" id="f">
+    <h3>${h ? 'Werte bearbeiten' : 'Neue Werte'}</h3>
+    <label>Zeitpunkt</label><input name="time" type="datetime-local" value="${h ? h.time : localIso(new Date())}">
+    <div class="grid2">
+      <div><label>Gewicht (kg)</label><input name="weight" inputmode="decimal" value="${h?.weight ?? ''}"></div>
+      <div><label>Ruhepuls</label><input name="pulse" inputmode="numeric" value="${h?.pulse ?? ''}"></div>
+      <div><label>Blutdruck systolisch</label><input name="sys" inputmode="numeric" value="${h?.sys ?? ''}"></div>
+      <div><label>Blutdruck diastolisch</label><input name="dia" inputmode="numeric" value="${h?.dia ?? ''}"></div>
+    </div>
+    <label>Notiz / Blutwerte</label><textarea name="note" placeholder="z. B. Hämatokrit 49 %, E2 32 pg/ml, Schlaf, Stimmung">${esc(h?.note ?? '')}</textarea>
+    <div class="actions">
+      <button class="btn primary" value="save">Speichern</button>
+      <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
+      ${h ? `<button class="btn danger" value="delete" formnovalidate>Löschen</button>` : ''}
+    </div></form>`;
+  const f = dlg.querySelector('#f');
+  dlg.onclose = () => {
+    if (dlg.returnValue === 'delete') { if (confirm('Messung löschen?')) { db.health = db.health.filter(x => x.id !== id); save(); render(); } return; }
+    if (dlg.returnValue !== 'save') return;
+    const data = { time: f.time.value || localIso(new Date()), weight: num(f.weight.value), pulse: num(f.pulse.value), sys: num(f.sys.value), dia: num(f.dia.value), note: f.note.value.trim() };
+    if (h) Object.assign(h, data); else db.health.push({ id: uid(), ...data });
+    save(); render(); toast('Gespeichert');
+  };
+  dlg.returnValue = ''; dlg.showModal();
+}
+
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportJson() { download(`tracker-backup-${todayKey()}.json`, JSON.stringify(db, null, 2), 'application/json'); }
+function exportCsv() {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [['Datum', 'Uhrzeit', 'Substanz', 'Menge', 'Einheit', 'Stelle', 'Notiz'].join(';')];
+  for (const l of [...db.logs].sort((a, b) => a.time.localeCompare(b.time))) {
+    const s = subById(l.subId);
+    lines.push([l.time.slice(0, 10), l.time.slice(11, 16), q(s ? s.name : l.subName), String(l.amount).replace('.', ','), s ? s.unit : l.unit, q(l.site), q(l.note)].join(';'));
+  }
+  download(`tracker-eintraege-${todayKey()}.csv`, '﻿' + lines.join('\n'), 'text/csv');
+}
+function importJson(file) {
+  if (!file) return;
+  file.text().then(t => {
+    const d = JSON.parse(t);
+    if (!Array.isArray(d.substances) || !Array.isArray(d.logs)) throw new Error();
+    if (!confirm('Aktuelle Daten durch das Backup ersetzen?')) return;
+    db = { substances: d.substances, logs: d.logs, health: d.health || [] }; save(); render(); toast('Backup importiert');
+  }).catch(() => toast('Ungültige Backup-Datei'));
+}
+function wipe() {
+  if (!confirm('Wirklich ALLE Daten löschen? Das kann nicht rückgängig gemacht werden.')) return;
+  db = { substances: [], logs: [], health: [] }; save(); render();
+}
+function setTheme(t) {
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem(KEY + '-theme', t); } catch (e) {}
+}
+try { const t = localStorage.getItem(KEY + '-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+
+render();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
