@@ -8,6 +8,11 @@ const FORMS = { inj: 'Injektion', oral: 'Oral', sc: 'Subkutan', other: 'Sonstige
 const CATS = { ped: 'Steroide / PEDs', med: 'Medikamente', supp: 'Supplements', rec: 'Freizeit', other: 'Sonstiges' };
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#6366f1', '#f97316'];
 const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+// Rough default for how many days after a dose a substance still counts as "in the system". Adjustable per substance.
+const DEFAULT_ACTIVE = {
+  'Testosteron Enanthat': 14, 'Testosteron Undecanoat': 42, 'Primobolan': 14, 'Trenbolon Acetat': 3, 'Deca-Durabolin': 21,
+  'Anavar': 1, 'Dianabol': 1, 'HGH': 1, 'Retatrutide': 7, 'Arimidex': 3, 'Tamoxifen': 14, 'Diazepam': 3
+};
 const MOODS = [['😫', 'Mies'], ['😣', 'Schlecht'], ['😕', 'Mäßig'], ['😐', 'Okay'], ['🙂', 'Gut'], ['😄', 'Super']];
 
 // ---------- Helpers ----------
@@ -63,7 +68,7 @@ const getFile = id => tx('files', 'readonly', s => s.get(id));
 const putFile = f => tx('files', 'readwrite', s => s.put(f));
 const delFile = id => tx('files', 'readwrite', s => s.delete(id));
 
-const emptyDb = () => ({ version: 2, substances: [], logs: [], days: {}, settings: { calories: true, kcalGoal: null, proteinGoal: null } });
+const emptyDb = () => ({ version: 2, substances: [], logs: [], days: {}, settings: { calories: true, kcalGoal: null, proteinGoal: null, activeDays: {} } });
 let db = emptyDb();
 
 let saving = Promise.resolve();
@@ -99,7 +104,21 @@ const subById = id => db.substances.find(s => s.id === id);
 const getDay = k => (db.days[k] ||= {});
 const peekDay = k => db.days[k] || {};
 const logsOn = k => db.logs.filter(l => l.time.slice(0, 10) === k).sort((a, b) => a.time.localeCompare(b.time));
-const colorOf = l => (subById(l.subId) || {}).color || '#9ca3af';
+const colorOf = l => (subById(l.subId) || db.substances.find(s => s.name === l.name) || {}).color || '#9ca3af';
+const activeDays = name => (db.settings.activeDays || {})[name] ?? DEFAULT_ACTIVE[name] ?? 0;
+function setActiveDays(name, v) {
+  const n = num(v);
+  db.settings.activeDays ||= {};
+  if (n == null) delete db.settings.activeDays[name]; else db.settings.activeDays[name] = Math.max(0, Math.round(n));
+  save();
+}
+// Substances not taken on day k but still within their after-effect window.
+function inSystem(k) {
+  const last = {};
+  for (const l of db.logs) { const d = l.time.slice(0, 10); if (d <= k && (!last[l.name] || d > last[l.name].d)) last[l.name] = { d, l }; }
+  return Object.entries(last).map(([name, { d, l }]) => ({ name, d, l, diff: daysBetween(d, k), ad: activeDays(name) }))
+    .filter(x => x.diff >= 1 && x.diff <= x.ad).sort((a, b) => (a.ad - a.diff) - (b.ad - b.diff)).reverse();
+}
 
 function doseText(s, amount) {
   let t = `${fmtNum(amount)} ${s.unit}`;
@@ -150,7 +169,7 @@ function suggestSite() {
 const defaultSite = s => s.form === 'inj' ? suggestSite() : s.form === 'sc' ? 'Bauch (subkutan)' : '';
 
 // ---------- Navigation ----------
-let tab = 'day', curDay = todayKey(), calMonth = todayKey().slice(0, 7), trendRange = 'month', moodPick = null;
+let tab = 'day', curDay = todayKey(), calMonth = todayKey().slice(0, 7), trendRange = 'month', moodPick = null, withAfter = true;
 document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.tab === 'day' && tab === 'day') curDay = todayKey();
   tab = b.dataset.tab; render(); window.scrollTo(0, 0);
@@ -198,6 +217,14 @@ async function renderDay() {
   } else if (!db.substances.length) {
     html += `<div class="card empty" style="margin-top:12px">Noch kein Plan angelegt.<br><br><button class="btn primary" onclick="tab='plan';render()">Zum Plan</button></div>`;
   }
+
+  // Still in the system
+  const sys = inSystem(k).filter(x => !logs.some(l => l.name === x.name) && !due.some(s => s.name === x.name));
+  if (sys.length) html += `<h2>Im System <span class="muted">wirkt noch nach</span></h2><div class="card">` + sys.map(x =>
+    `<div class="entry"><div class="row"><div class="dot" style="background:${esc(colorOf(x.l))}"></div><div class="grow name">${esc(x.name)}</div>
+      <span class="muted">noch ${x.ad - x.diff + 1} ${x.ad - x.diff + 1 === 1 ? 'Tag' : 'Tage'}</span></div>
+      <div class="muted" style="margin-left:22px">zuletzt ${fmtDay(x.d)}${x.l.amount != null ? ' · ' + fmtNum(x.l.amount) + ' ' + esc(x.l.unit) : ''}</div>
+      <div class="bar-bg" style="margin-left:22px"><i style="width:${Math.round((x.ad - x.diff + 1) / (x.ad + 1) * 100)}%;background:${esc(colorOf(x.l))}"></i></div></div>`).join('') + `</div>`;
 
   // Planned but not ticked off in the last 7 days
   if (isToday) {
@@ -558,15 +585,19 @@ function renderTrends() {
 
 // Which substances were taken on days with a given mood, and mood with vs. without each substance.
 function moodSubstances(days) {
-  const taken = {}; // name -> Set of mood days it was taken
+  const taken = {}; // name -> Set of mood days it was taken (or still active)
+  const daySet = new Set(days);
   for (const l of db.logs) {
-    const k = l.time.slice(0, 10), d = db.days[k];
-    if (!d || d.mood == null || !days.includes(k)) continue;
-    (taken[l.name] ||= { color: colorOf(l), days: new Set() }).days.add(k);
+    const k0 = l.time.slice(0, 10), span = withAfter ? activeDays(l.name) : 0;
+    for (let i = 0; i <= span; i++) {
+      const k = addDays(k0, i);
+      if (daySet.has(k)) (taken[l.name] ||= { color: colorOf(l), days: new Set() }).days.add(k);
+    }
   }
   const names = Object.keys(taken);
   let html = `<h2>Stimmung & Substanzen</h2><div class="card">
-    <div class="muted" style="margin-bottom:8px">Tippe einen Smiley an: Was hast du an diesen Tagen genommen?</div>
+    <label style="display:flex;align-items:center;gap:8px;color:var(--text);margin:0 0 10px"><input type="checkbox" style="width:auto" ${withAfter ? 'checked' : ''} onchange="withAfter=this.checked;renderTrends()"> Nachwirkung mitzählen (Tage im System)</label>
+    <div class="muted" style="margin-bottom:8px">Tippe einen Smiley an: Was war an diesen Tagen im System?</div>
     <div class="moods">${MOODS.map(([e], i) => { const n = days.filter(k => db.days[k].mood === i).length;
       return `<button class="mood ${moodPick === i ? 'sel' : ''}" onclick="moodPick=moodPick===${i}?null:${i};renderTrends()"><span>${e}</span>${n} T.</button>`; }).join('')}</div>`;
   if (moodPick != null) {
@@ -587,7 +618,7 @@ function moodSubstances(days) {
       <table style="margin-top:6px"><tr><th>Substanz</th><th class="num">mit</th><th class="num">ohne</th><th class="num">Diff.</th></tr>
       ${cmp.map(r => { const d = r.w != null && r.wo != null ? r.w - r.wo : null;
         return `<tr><td><span class="row" style="gap:6px"><i class="dot" style="background:${esc(r.c)}"></i>${esc(r.n)}</span><div class="muted">${r.nw} Tage</div></td><td class="num">${fmtNum(r.w, 1)}</td><td class="num">${fmtNum(r.wo, 1)}</td><td class="num">${fmtDiff(d)}</td></tr>`; }).join('')}</table>
-      <div class="muted" style="margin-top:8px">Zählt nur Tage mit Smiley. Wenige Tage = wenig aussagekräftig; Depot-Substanzen wirken auch an Tagen ohne Spritze.</div>`;
+      <div class="muted" style="margin-top:8px">Zählt nur Tage mit Smiley. ${withAfter ? 'Mit Nachwirkung: zählt auch die Tage danach (einstellbar im Plan).' : 'Nur der Tag der Einnahme.'}</div>`;
   }
   return html + `</div>`;
 }
@@ -653,11 +684,15 @@ function renderPlan() {
         <div class="grow"><div class="name">${esc(s.name)}${s.active ? '' : ' <span class="muted">(pausiert)</span>'}</div>
           <div class="muted">${doseText(s, s.dose)} · ${scheduleText(s)} · ${FORMS[s.form]}</div>
           ${weekly != null ? `<div class="muted">≈ ${fmtNum(weekly)} ${esc(s.unit)} / Woche</div>` : ''}
+          ${activeDays(s.name) ? `<div class="muted">wirkt ${activeDays(s.name)} Tage nach</div>` : ''}
           ${s.notes ? `<div class="muted">${esc(s.notes)}</div>` : ''}</div>
         <button class="btn small" onclick="editSubstance('${s.id}')">✎</button></div>`;
     }
     html += `</div>`;
   }
+  const others = [...new Set(db.logs.filter(l => !db.substances.some(s => s.name === l.name)).map(l => l.name))].sort();
+  if (others.length) html += `<h2>Nachwirkung – sonstige Einträge</h2><div class="card"><div class="muted" style="margin-bottom:6px">Tage im System nach der Einnahme (0 = nur am selben Tag)</div>` +
+    others.map(n => `<div class="entry row"><div class="grow name">${esc(n)}</div><input style="width:80px;text-align:right" inputmode="numeric" value="${activeDays(n)}" onchange="setActiveDays(${esc(JSON.stringify(n))}, this.value)"></div>`).join('') + `</div>`;
   if (!db.substances.length) html += `<div class="card empty">Lege hier alles an, was du regelmäßig oder ab und zu nimmst – Steroide, Medikamente, Supplements, Freizeit. Geplante Sachen erscheinen dann am jeweiligen Tag zum Abhaken, „nach Bedarf“-Sachen als Schnell-Buttons.</div>`;
   $('#view').innerHTML = html;
 }
@@ -677,6 +712,8 @@ function editSubstance(id) {
       <div><label>Konzentration mg/ml</label><input name="conc" inputmode="decimal" value="${v.conc || ''}" placeholder="optional"></div>
       <div><label>Farbe</label><input name="color" type="color" value="${esc(v.color)}" style="height:43px;padding:4px"></div>
     </div>
+    <label>Wirkt nach (Tage im System nach der Einnahme)</label>
+    <input name="afterDays" inputmode="numeric" value="${v.name ? activeDays(v.name) : ''}" placeholder="z. B. 14">
     <label>Rhythmus</label>
     <select name="mode">
       <option value="interval" ${v.mode === 'interval' ? 'selected' : ''}>Alle X Tage</option>
@@ -724,6 +761,7 @@ function editSubstance(id) {
       timesPerDay: Math.max(1, Math.round(num(f.tpd.value) || 1)), active: f.active.value === '1',
       start: f.start.value || todayKey(), end: f.end.value, notes: f.notes.value.trim()
     };
+    setActiveDays(data.name, f.afterDays.value);
     if (s) {
       Object.assign(s, data);
       db.logs.forEach(l => { if (l.subId === s.id) { l.name = s.name; l.category = s.category; } });
