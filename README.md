@@ -1,13 +1,19 @@
 # Substance Tracker
 
-A small offline-first web app (PWA) for logging a substance/medication plan: one tap to log a dose, injection-site rotation, history, weekly totals and health readings (weight, blood pressure, resting pulse, blood work notes).
+Offline-first web app (PWA) for iPhone: log a substance plan, a daily journal, mood and nutrition.
 
-- Everything is stored **only locally in the browser** (localStorage); nothing is uploaded.
-- Back up regularly via **Daten → Backup exportieren**.
-- No build step: plain `index.html`, `manifest.webmanifest`, `sw.js`, `icon.svg`.
+- **Tag:** mood 0–5 (smileys), plan items to tick off, free entries (any category, incl. recreational), calories/macros, journal, PDF/photo attachments per day (PDF text is extracted on device with bundled pdf.js and is searchable).
+- **Verlauf:** month calendar with mood + markers, monthly totals, full-text search over journal, entries and PDF text.
+- **Trends:** mood curve (and calories) for week / month / 3 months / year / all.
+- **Plan:** substances by category; interval (incl. 3.5 days), weekdays, or as-needed.
+- **Mehr:** calorie goals, backup (JSON incl. documents) / restore, CSV export, theme.
 
-## Run
+All data lives only on the device (IndexedDB). No build step; the service worker caches everything so the app runs fully offline after the first load.
 
-Serve the folder over HTTP(S), e.g. `python3 -m http.server`, or enable GitHub Pages
-(Settings → Pages → Deploy from branch → `master` / root). Open the URL on your phone and
-choose "Add to Home Screen" to install it as an app.
+## Install on iPhone
+
+1. Host the folder once over HTTPS (e.g. GitHub Pages: Settings → Pages → Deploy from branch → `master` / root).
+2. Open the URL in Safari → Share → "Zum Home-Bildschirm".
+3. Start it from the home screen. From then on it works without internet.
+
+`vendor/` contains pdf.js 3.11.174 (Apache-2.0, see `vendor/pdfjs-LICENSE`).
