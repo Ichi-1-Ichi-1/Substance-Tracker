@@ -111,6 +111,10 @@ function scheduleText(s) {
   const tpd = s.timesPerDay > 1 ? `, ${s.timesPerDay}× täglich` : '';
   if (s.mode === 'weekdays') return (s.weekdays.length ? [1, 2, 3, 4, 5, 6, 0].filter(d => s.weekdays.includes(d)).map(d => WEEKDAYS[d]).join(', ') : 'keine Tage') + tpd;
   if (s.mode === 'asneeded') return 'Nach Bedarf';
+  if (s.mode === 'dates') {
+    const up = (s.dates || []).filter(k => k >= todayKey());
+    return up.length ? 'Termine: ' + up.slice(0, 4).map(k => parseDay(k).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })).join(', ') + (up.length > 4 ? ' …' : '') : 'Keine weiteren Termine';
+  }
   if (s.interval === 1) return 'Täglich' + tpd;
   if (s.interval === 7) return 'Wöchentlich' + tpd;
   return `Alle ${String(s.interval).replace('.', ',')} Tage` + tpd;
@@ -122,17 +126,18 @@ function isDue(s, k) {
   if (s.start && k < s.start) return false;
   if (s.end && k > s.end) return false;
   if (s.mode === 'weekdays') return s.weekdays.includes(parseDay(k).getDay());
+  if (s.mode === 'dates') return (s.dates || []).includes(k);
   const diff = daysBetween(s.start || k, k), iv = s.interval || 1;
   if (Number.isInteger(iv)) return diff % iv === 0;
   return Math.round(Math.round(diff / iv) * iv) === diff;
 }
 function nextDue(s, from) {
-  for (let i = 0; i < 90; i++) { const k = addDays(from, i); if (isDue(s, k)) return k; }
+  for (let i = 0; i < 400; i++) { const k = addDays(from, i); if (isDue(s, k)) return k; }
   return null;
 }
 function weeklyDose(s) {
   const t = s.timesPerDay || 1;
-  if (s.mode === 'asneeded') return null;
+  if (s.mode === 'asneeded' || s.mode === 'dates') return null;
   if (s.mode === 'weekdays') return s.dose * s.weekdays.length * t;
   return s.dose * 7 / (s.interval || 1) * t;
 }
@@ -194,10 +199,23 @@ async function renderDay() {
     html += `<div class="card empty" style="margin-top:12px">Noch kein Plan angelegt.<br><br><button class="btn primary" onclick="tab='plan';render()">Zum Plan</button></div>`;
   }
 
+  // Planned but not ticked off in the last 7 days
+  if (isToday) {
+    const open = [];
+    for (let i = 1; i <= 7; i++) {
+      const d = addDays(k, -i);
+      for (const s of db.substances) if (isDue(s, d) && logsOn(d).filter(l => l.subId === s.id).length < (s.timesPerDay || 1)) open.push({ s, d });
+    }
+    if (open.length) html += `<h2>Offen <span class="muted">letzte 7 Tage</span></h2><div class="card">` + open.map(({ s, d }) =>
+      `<div class="entry row"><div class="dot" style="background:${esc(s.color)}"></div><div class="grow"><div class="name">${esc(s.name)}</div><div class="muted">${fmtDay(d)} · ${doseText(s, s.dose)}</div></div>
+        <button class="btn small" onclick="curDay='${d}';quickLog('${s.id}');curDay=todayKey();renderDay()">Erledigt</button>
+        <button class="btn small" onclick="openDay('${d}')">›</button></div>`).join('') + `</div>`;
+  }
+
   // Logged
   html += `<h2>Eingetragen <span class="muted">${logs.length || ''}</span></h2>`;
   html += logs.length ? `<div class="card">${logs.map(logRow).join('')}</div>` : '';
-  const quick = db.substances.filter(s => s.active && !due.includes(s));
+  const quick = db.substances.filter((s, i, all) => s.active && !due.some(d => d.name === s.name) && all.findIndex(x => x.active && x.name === s.name) === i);
   html += `<div class="chips">${quick.map(s => `<button class="chip" onclick="editLog(null,'${s.id}')"><i class="dot" style="background:${esc(s.color)}"></i>${esc(s.name)}</button>`).join('')}
     <button class="chip" onclick="editLog()">＋ Anderes eintragen</button></div>`;
 
@@ -245,7 +263,7 @@ async function renderFiles(k) {
 function logRow(l) {
   return `<div class="entry row">
     <div class="dot" style="background:${esc(colorOf(l))}"></div>
-    <div class="grow"><div class="name">${esc(l.name)} <span class="muted">${fmtNum(l.amount)} ${esc(l.unit)}</span></div>
+    <div class="grow"><div class="name">${esc(l.name)} <span class="muted">${l.amount != null ? fmtNum(l.amount) + ' ' + esc(l.unit) : ''}</span></div>
       <div class="muted">${fmtTime(l.time)} · ${CATS[l.category] || ''}${l.site ? ' · ' + esc(l.site) : ''}${l.note ? ' · ' + esc(l.note) : ''}</div></div>
     <button class="btn small" onclick="editLog('${l.id}')">✎</button></div>`;
 }
@@ -303,11 +321,12 @@ function editLog(id, presetSub) {
       ${Object.entries(CATS).map(([c, t]) => { const list = db.substances.filter(s => s.category === c); return list.length ? `<optgroup label="${t}">${list.map(s => `<option value="${s.id}" ${s0 && s.id === s0.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</optgroup>` : ''; }).join('')}
     </select>
     <div id="freeBox">
-      <label>Name</label><input name="name" value="${esc(l && free ? l.name : '')}" placeholder="z. B. Ibuprofen, Alkohol, …">
+      <label>Name</label><input name="name" list="pastNames" autocomplete="off" value="${esc(l && free ? l.name : '')}" placeholder="z. B. Ibuprofen, Alkohol, …">
+      <datalist id="pastNames">${[...new Set(db.logs.filter(x => !x.subId).map(x => x.name))].sort().map(n => `<option value="${esc(n)}">`).join('')}</datalist>
       <label>Kategorie</label><select name="category">${Object.entries(CATS).map(([c, t]) => `<option value="${c}" ${(l ? l.category : 'rec') === c ? 'selected' : ''}>${t}</option>`).join('')}</select>
     </div>
     <div class="grid2">
-      <div><label>Menge</label><input name="amount" inputmode="decimal" value="${l ? l.amount : s0 ? s0.dose : ''}"></div>
+      <div><label>Menge (optional)</label><input name="amount" inputmode="decimal" value="${l ? l.amount ?? '' : s0 ? s0.dose : ''}"></div>
       <div><label>Einheit</label><select name="unit">${UNITS.map(u => `<option ${(l ? l.unit : s0 ? s0.unit : 'mg') === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
     </div>
     <label>Zeitpunkt</label><input name="time" type="datetime-local" value="${l ? l.time : nowOn(curDay)}">
@@ -327,6 +346,11 @@ function editLog(id, presetSub) {
     if (!first && s) { f.amount.value = s.dose; f.unit.value = s.unit; f.site.value = defaultSite(s); }
   };
   f.subId.addEventListener('change', () => sync(false)); sync(true);
+  // Picking a name used before fills in its last category and unit.
+  f.name.addEventListener('change', () => {
+    const prev = [...db.logs].reverse().find(x => x.name.toLowerCase() === f.name.value.trim().toLowerCase());
+    if (prev && !l) { f.category.value = prev.category; f.unit.value = prev.unit || f.unit.value; if (prev.amount != null && !f.amount.value) f.amount.value = prev.amount; }
+  });
   if (!l && s0) f.site.value = defaultSite(s0);
   dlg.onclose = () => {
     if (dlg.returnValue === 'delete') {
@@ -336,7 +360,7 @@ function editLog(id, presetSub) {
     if (dlg.returnValue !== 'save') return;
     const s = subById(f.subId.value), amount = num(f.amount.value);
     const name = s ? s.name : f.name.value.trim();
-    if (!name || amount == null || !f.time.value) { toast('Name, Menge und Zeitpunkt angeben'); return; }
+    if (!name || !f.time.value) { toast('Name und Zeitpunkt angeben'); return; }
     const data = { subId: s ? s.id : null, name, category: s ? s.category : f.category.value, unit: f.unit.value, amount, time: f.time.value, site: f.site.value, note: f.note.value.trim() };
     if (l) Object.assign(l, data); else db.logs.push({ id: uid(), ...data });
     save(); render(); toast('Gespeichert');
@@ -446,14 +470,14 @@ async function renderHistory() {
   // Month totals
   const monthLogs = db.logs.filter(l => l.time.startsWith(calMonth));
   const totals = {};
-  for (const l of monthLogs) { const key = l.name + '|' + l.unit; (totals[key] ||= { name: l.name, unit: l.unit, sum: 0, n: 0, color: colorOf(l) }); totals[key].sum += l.amount; totals[key].n++; }
+  for (const l of monthLogs) { const key = l.name + '|' + l.unit; (totals[key] ||= { name: l.name, unit: l.unit, sum: 0, n: 0, color: colorOf(l) }); totals[key].sum += l.amount || 0; totals[key].n++; }
   const moods = Object.entries(db.days).filter(([k, d]) => k.startsWith(calMonth) && d.mood != null).map(([, d]) => d.mood);
 
   let html = `<div class="card">${cal}</div>`;
   html += `<h2>Diesen Monat</h2><div class="card">
     <div class="muted">${moods.length ? `Stimmung Ø ${fmtNum(moods.reduce((a, b) => a + b, 0) / moods.length, 1)} an ${moods.length} Tagen` : 'Keine Stimmung erfasst'}</div>
     ${Object.keys(totals).length ? `<table style="margin-top:8px"><tr><th>Was</th><th class="num">Anzahl</th><th class="num">Gesamt</th></tr>
-      ${Object.values(totals).sort((a, b) => a.name.localeCompare(b.name)).map(t => `<tr><td><span class="row" style="gap:6px"><i class="dot" style="background:${esc(t.color)}"></i>${esc(t.name)}</span></td><td class="num">${t.n}×</td><td class="num">${fmtNum(t.sum)} ${esc(t.unit)}</td></tr>`).join('')}</table>` : ''}
+      ${Object.values(totals).sort((a, b) => a.name.localeCompare(b.name)).map(t => `<tr><td><span class="row" style="gap:6px"><i class="dot" style="background:${esc(t.color)}"></i>${esc(t.name)}</span></td><td class="num">${t.n}×</td><td class="num">${t.sum ? fmtNum(t.sum) + ' ' + esc(t.unit) : '–'}</td></tr>`).join('')}</table>` : ''}
   </div>`;
 
   html += `<h2>Suchen</h2><input id="q" type="search" placeholder="Tagebuch, Einträge, PDF-Texte durchsuchen" value="${esc(renderHistory.q || '')}" oninput="renderHistory.q=this.value;runSearch()"><div id="results" style="margin-top:10px"></div>`;
@@ -657,8 +681,11 @@ function editSubstance(id) {
     <select name="mode">
       <option value="interval" ${v.mode === 'interval' ? 'selected' : ''}>Alle X Tage</option>
       <option value="weekdays" ${v.mode === 'weekdays' ? 'selected' : ''}>Bestimmte Wochentage</option>
+      <option value="dates" ${v.mode === 'dates' ? 'selected' : ''}>Bestimmte Daten</option>
       <option value="asneeded" ${v.mode === 'asneeded' ? 'selected' : ''}>Nach Bedarf (Schnell-Button)</option>
     </select>
+    <div id="dtBox"><label>Daten (mit Komma getrennt, z. B. 12.10.2026, 12.11.2026)</label>
+      <textarea name="dates" style="min-height:60px">${(v.dates || []).map(k => parseDay(k).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })).join(', ')}</textarea></div>
     <div id="ivBox"><label>Alle wie viele Tage? (1 = täglich, 3,5 = E3.5D, 7 = wöchentlich)</label>
       <input name="interval" inputmode="decimal" value="${String(v.interval).replace('.', ',')}"></div>
     <div id="wdBox"><label>Wochentage</label><div class="days">
@@ -676,7 +703,7 @@ function editSubstance(id) {
       ${s ? `<button class="btn danger" value="delete" formnovalidate>Löschen</button>` : ''}
     </div></form>`;
   const f = dlg.querySelector('#f');
-  const sync = () => { $('#ivBox').style.display = f.mode.value === 'interval' ? '' : 'none'; $('#wdBox').style.display = f.mode.value === 'weekdays' ? '' : 'none'; };
+  const sync = () => { $('#ivBox').style.display = f.mode.value === 'interval' ? '' : 'none'; $('#wdBox').style.display = f.mode.value === 'weekdays' ? '' : 'none'; $('#dtBox').style.display = f.mode.value === 'dates' ? '' : 'none'; };
   f.mode.addEventListener('change', sync); sync();
   dlg.onclose = () => {
     if (dlg.returnValue === 'delete') {
@@ -693,6 +720,7 @@ function editSubstance(id) {
       name: f.name.value.trim(), category: f.category.value, form: f.form.value, color: f.color.value, dose, unit: f.unit.value,
       conc: num(f.conc.value), mode: f.mode.value, interval: Math.max(0.5, num(f.interval.value) || 1),
       weekdays: [...f.querySelectorAll('[name=wd]:checked')].map(c => Number(c.value)),
+      dates: parseDates(f.dates.value),
       timesPerDay: Math.max(1, Math.round(num(f.tpd.value) || 1)), active: f.active.value === '1',
       start: f.start.value || todayKey(), end: f.end.value, notes: f.notes.value.trim()
     };
@@ -703,6 +731,15 @@ function editSubstance(id) {
     save(); render(); toast('Gespeichert');
   };
   dlg.returnValue = ''; dlg.showModal();
+}
+
+function parseDates(t) {
+  const out = [];
+  for (const m of t.matchAll(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})|(\d{4})-(\d{2})-(\d{2})/g)) {
+    const [y, mo, d] = m[4] ? [+m[4], +m[5], +m[6]] : [+m[3] < 100 ? 2000 + +m[3] : +m[3], +m[2], +m[1]];
+    out.push(`${y}-${pad(mo)}-${pad(d)}`);
+  }
+  return [...new Set(out)].sort();
 }
 
 // ---------- More: settings & backup ----------
@@ -750,7 +787,7 @@ function exportCsv() {
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [['Datum', 'Uhrzeit', 'Kategorie', 'Was', 'Menge', 'Einheit', 'Stelle', 'Notiz'].join(';')];
   for (const l of [...db.logs].sort((a, b) => a.time.localeCompare(b.time)))
-    lines.push([l.time.slice(0, 10), l.time.slice(11, 16), q(CATS[l.category]), q(l.name), String(l.amount).replace('.', ','), q(l.unit), q(l.site), q(l.note)].join(';'));
+    lines.push([l.time.slice(0, 10), l.time.slice(11, 16), q(CATS[l.category]), q(l.name), l.amount == null ? '' : String(l.amount).replace('.', ','), q(l.unit), q(l.site), q(l.note)].join(';'));
   lines.push('', ['Datum', 'Stimmung', 'kcal', 'Protein', 'KH', 'Fett', 'Tagebuch'].join(';'));
   for (const k of Object.keys(db.days).sort()) {
     const d = db.days[k];

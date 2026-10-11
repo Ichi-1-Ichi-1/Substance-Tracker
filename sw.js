@@ -1,4 +1,4 @@
-const CACHE = 'tracker-v3';
+const CACHE = 'tracker-v4';
 const ASSETS = ['./', './index.html', './app.js', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png', './vendor/pdf.min.js', './vendor/pdf.worker.min.js'];
 
 self.addEventListener('install', e => {
