@@ -23,6 +23,7 @@ const addDays = (k, n) => { const d = parseDay(k); d.setDate(d.getDate() + n); r
 const fmtDay = k => parseDay(k).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
 const fmtLong = k => parseDay(k).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const fmtTime = iso => iso.slice(11, 16);
+const fmtDiff = d => { if (d == null) return '–'; const r = Math.round(d * 10) / 10; return r > 0 ? '▲ +' + fmtNum(r, 1) : r < 0 ? '▼ ' + fmtNum(r, 1) : '±0'; };
 const num = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : null; };
 const fmtNum = (n, d = 2) => n == null ? '–' : (Math.round(n * 10 ** d) / 10 ** d).toLocaleString('de-DE');
 const localIso = d => `${dayKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -144,7 +145,7 @@ function suggestSite() {
 const defaultSite = s => s.form === 'inj' ? suggestSite() : s.form === 'sc' ? 'Bauch (subkutan)' : '';
 
 // ---------- Navigation ----------
-let tab = 'day', curDay = todayKey(), calMonth = todayKey().slice(0, 7), trendRange = 'month';
+let tab = 'day', curDay = todayKey(), calMonth = todayKey().slice(0, 7), trendRange = 'month', moodPick = null;
 document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.tab === 'day' && tab === 'day') curDay = todayKey();
   tab = b.dataset.tab; render(); window.scrollTo(0, 0);
@@ -505,19 +506,21 @@ function renderTrends() {
     <div class="stat">
       <div><div class="muted">Ø Stimmung</div><div class="v">${avg != null ? fmtNum(avg, 1) + ' ' + MOODS[Math.round(avg)][0] : '–'}</div></div>
       <div><div class="muted">Erfasste Tage</div><div class="v">${inRange.length}</div></div>
-      <div><div class="muted">vs. davor</div><div class="v">${diff != null ? (diff > 0 ? '▲ +' : diff < 0 ? '▼ ' : '') + fmtNum(diff, 1) : '–'}</div></div>
+      <div><div class="muted">vs. davor</div><div class="v">${fmtDiff(diff)}</div></div>
     </div>
     <div class="card"><div class="muted" style="margin-bottom:6px">${bucket === 1 ? 'Tageswerte' : bucket === 7 ? 'Wochendurchschnitt' : 'Monatsdurchschnitt'} · 0 = mies, 5 = super</div>
       <div class="chart" id="moodChart"></div></div>`;
 
-  if (db.settings.calories) {
+  const hasKcal = db.settings.calories && Object.entries(db.days).some(([k, d]) => k >= from && d.kcal != null);
+  if (hasKcal) {
     html += `<h2>Kalorien</h2><div class="card"><div class="muted" style="margin-bottom:6px">${bucket === 1 ? 'Tageswerte' : 'Durchschnitt pro Tag'}</div><div class="chart" id="kcalChart"></div></div>`;
   }
+  html += moodSubstances(inRange);
   if (!moodDays.length) html += `<div class="notice">Tippe auf „Tag“ jeden Tag einen Smiley an – hier entsteht dann deine Kurve.</div>`;
   $('#view').innerHTML = html;
 
   lineChart($('#moodChart'), pts, { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5], fmt: v => fmtNum(v, 1) + ' ' + MOODS[Math.round(v)][0], label: v => v });
-  if (db.settings.calories) {
+  if (hasKcal) {
     const kp = pts.map(p => {
       const vals = [];
       for (let k = p.k; k <= p.end && k <= today; k = addDays(k, 1)) { const d = db.days[k]; if (d && d.kcal != null) vals.push(d.kcal); }
@@ -527,6 +530,42 @@ function renderTrends() {
     const max = vals.length ? Math.ceil(Math.max(...vals, db.settings.kcalGoal || 0) / 500) * 500 : 3000;
     lineChart($('#kcalChart'), kp, { min: 0, max, ticks: [0, max / 2, max], fmt: v => fmtNum(v, 0) + ' kcal', label: v => fmtNum(v, 0), goal: db.settings.kcalGoal });
   }
+}
+
+// Which substances were taken on days with a given mood, and mood with vs. without each substance.
+function moodSubstances(days) {
+  const taken = {}; // name -> Set of mood days it was taken
+  for (const l of db.logs) {
+    const k = l.time.slice(0, 10), d = db.days[k];
+    if (!d || d.mood == null || !days.includes(k)) continue;
+    (taken[l.name] ||= { color: colorOf(l), days: new Set() }).days.add(k);
+  }
+  const names = Object.keys(taken);
+  let html = `<h2>Stimmung & Substanzen</h2><div class="card">
+    <div class="muted" style="margin-bottom:8px">Tippe einen Smiley an: Was hast du an diesen Tagen genommen?</div>
+    <div class="moods">${MOODS.map(([e], i) => { const n = days.filter(k => db.days[k].mood === i).length;
+      return `<button class="mood ${moodPick === i ? 'sel' : ''}" onclick="moodPick=moodPick===${i}?null:${i};renderTrends()"><span>${e}</span>${n} T.</button>`; }).join('')}</div>`;
+  if (moodPick != null) {
+    const sel = days.filter(k => db.days[k].mood === moodPick);
+    const rows = names.map(n => ({ n, c: taken[n].color, hit: sel.filter(k => taken[n].days.has(k)).length })).filter(r => r.hit).sort((a, b) => b.hit - a.hit);
+    html += `<div style="margin-top:12px"><b>${MOODS[moodPick][0]} ${moodPick} – ${MOODS[moodPick][1]}</b> <span class="muted">an ${sel.length} Tagen</span></div>`;
+    html += !sel.length ? `<div class="muted">Keine Tage mit diesem Smiley im Zeitraum.</div>`
+      : rows.length ? `<table style="margin-top:6px">${rows.map(r => `<tr><td><span class="row" style="gap:6px"><i class="dot" style="background:${esc(r.c)}"></i>${esc(r.n)}</span></td><td class="num">${r.hit} von ${sel.length}</td><td class="num muted">${Math.round(r.hit / sel.length * 100)} %</td></tr>`).join('')}</table>`
+      : `<div class="muted">An diesen Tagen nichts eingetragen.</div>`;
+    html += sel.length ? `<div class="chips" style="margin-top:10px">${sel.slice(-14).reverse().map(k => `<button class="chip" onclick="openDay('${k}')">${parseDay(k).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</button>`).join('')}</div>` : '';
+  }
+  // Average mood with vs. without each substance
+  const avgOf = ks => ks.length ? ks.reduce((a, k) => a + db.days[k].mood, 0) / ks.length : null;
+  const cmp = names.map(n => { const w = days.filter(k => taken[n].days.has(k)), wo = days.filter(k => !taken[n].days.has(k)); return { n, c: taken[n].color, w: avgOf(w), wo: avgOf(wo), nw: w.length }; })
+    .sort((a, b) => ((b.w ?? 0) - (b.wo ?? 0)) - ((a.w ?? 0) - (a.wo ?? 0)));
+  if (cmp.length) {
+    html += `<div style="margin-top:16px"><b>Ø Stimmung mit / ohne</b></div>
+      <table style="margin-top:6px"><tr><th>Substanz</th><th class="num">mit</th><th class="num">ohne</th><th class="num">Diff.</th></tr>
+      ${cmp.map(r => { const d = r.w != null && r.wo != null ? r.w - r.wo : null;
+        return `<tr><td><span class="row" style="gap:6px"><i class="dot" style="background:${esc(r.c)}"></i>${esc(r.n)}</span><div class="muted">${r.nw} Tage</div></td><td class="num">${fmtNum(r.w, 1)}</td><td class="num">${fmtNum(r.wo, 1)}</td><td class="num">${fmtDiff(d)}</td></tr>`; }).join('')}</table>
+      <div class="muted" style="margin-top:8px">Zählt nur Tage mit Smiley. Wenige Tage = wenig aussagekräftig; Depot-Substanzen wirken auch an Tagen ohne Spritze.</div>`;
+  }
+  return html + `</div>`;
 }
 
 // Single-series line chart: 2px line, 8px markers, recessive grid, crosshair + tooltip.
