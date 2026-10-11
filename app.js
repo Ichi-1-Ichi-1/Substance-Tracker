@@ -203,6 +203,9 @@ async function renderDay() {
   html += `<h2>Wie fühlst du dich?</h2><div class="moods">` + MOODS.map(([e, t], i) =>
     `<button class="mood ${day.mood === i ? 'sel' : ''}" onclick="setMood(${i})" aria-label="${i} – ${t}"><span>${e}</span>${i}</button>`).join('') + `</div>`;
 
+  // Journal
+  html += `<h2>Journal</h2><textarea id="note" data-day="${k}" placeholder="Wie war dein Tag? Training, Schlaf, Gedanken, Nebenwirkungen …" oninput="noteChanged(this.value)">${esc(day.note || '')}</textarea>`;
+
   // Plan
   if (due.length) {
     html += `<h2>Plan</h2><div class="card">`;
@@ -257,8 +260,6 @@ async function renderDay() {
     </div>`;
   }
 
-  // Journal
-  html += `<h2>Tagebuch</h2><textarea id="note" data-day="${k}" placeholder="Was hast du heute gemacht? Training, Schlaf, Nebenwirkungen, Besonderheiten …" oninput="noteChanged(this.value)">${esc(day.note || '')}</textarea>`;
 
   // Documents
   html += `<h2>Dokumente <span class="muted">PDF oder Foto, z. B. Blutbild</span></h2><div id="files"></div>
@@ -507,7 +508,13 @@ async function renderHistory() {
       ${Object.values(totals).sort((a, b) => a.name.localeCompare(b.name)).map(t => `<tr><td><span class="row" style="gap:6px"><i class="dot" style="background:${esc(t.color)}"></i>${esc(t.name)}</span></td><td class="num">${t.n}×</td><td class="num">${t.sum ? fmtNum(t.sum) + ' ' + esc(t.unit) : '–'}</td></tr>`).join('')}</table>` : ''}
   </div>`;
 
-  html += `<h2>Suchen</h2><input id="q" type="search" placeholder="Tagebuch, Einträge, PDF-Texte durchsuchen" value="${esc(renderHistory.q || '')}" oninput="renderHistory.q=this.value;runSearch()"><div id="results" style="margin-top:10px"></div>`;
+  const notes = Object.keys(db.days).filter(k => k.startsWith(calMonth) && db.days[k].note).sort().reverse();
+  if (notes.length) html += `<h2>Journal <span class="muted">${notes.length} Einträge</span></h2><div class="card">` + notes.map(k => {
+    const d = db.days[k];
+    return `<div class="entry" onclick="openDay('${k}')" style="cursor:pointer"><div class="row"><span class="name grow">${fmtDay(k)}</span><span>${d.mood != null ? MOODS[d.mood][0] : ''}</span></div>
+      <div class="muted" style="white-space:pre-wrap">${esc(d.note.length > 220 ? d.note.slice(0, 220) + ' …' : d.note)}</div></div>`;
+  }).join('') + `</div>`;
+  html += `<h2>Suchen</h2><input id="q" type="search" placeholder="Journal, Einträge, PDF-Texte durchsuchen" value="${esc(renderHistory.q || '')}" oninput="renderHistory.q=this.value;runSearch()"><div id="results" style="margin-top:10px"></div>`;
   $('#view').innerHTML = html;
   runSearch(files);
 }
@@ -522,7 +529,7 @@ async function runSearch(files) {
     const i = t.toLowerCase().indexOf(q), a = Math.max(0, i - 40);
     return (a ? '…' : '') + esc(t.slice(a, i)) + '<mark>' + esc(t.slice(i, i + q.length)) + '</mark>' + esc(t.slice(i + q.length, i + q.length + 60)) + '…';
   };
-  for (const [k, d] of Object.entries(db.days)) if (d.note && d.note.toLowerCase().includes(q)) hits.push({ k, what: 'Tagebuch', text: snippet(d.note) });
+  for (const [k, d] of Object.entries(db.days)) if (d.note && d.note.toLowerCase().includes(q)) hits.push({ k, what: 'Journal', text: snippet(d.note) });
   for (const l of db.logs) { const t = `${l.name} ${l.note || ''} ${l.site || ''}`; if (t.toLowerCase().includes(q)) hits.push({ k: l.time.slice(0, 10), what: l.name, text: snippet(t) }); }
   for (const f of files) { const t = `${f.name}\n${f.text || ''}`; if (t.toLowerCase().includes(q)) hits.push({ k: f.day, what: '📄 ' + f.name, text: snippet(t) }); }
   hits.sort((a, b) => b.k.localeCompare(a.k));
