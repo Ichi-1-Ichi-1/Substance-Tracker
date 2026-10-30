@@ -82,6 +82,7 @@
   .done { color: var(--ok); font-weight: 600; font-size: 14px; white-space: nowrap; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border: 1px solid var(--border); background: var(--chip); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
+  .chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
   label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
   input, select, textarea {
     width: 100%; font: inherit; font-size: 16px; color: var(--text); background: var(--bg);
@@ -156,6 +157,7 @@
 </nav>
 <dialog id="dlg"></dialog>
 <div class="toast" id="toast"></div>
+<script src="substances-db.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

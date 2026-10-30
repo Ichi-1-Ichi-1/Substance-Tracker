@@ -5,14 +5,36 @@ const SITES = ['Glute links', 'Glute rechts', 'Quad links', 'Quad rechts', 'Delt
 const ROTATION = SITES.slice(0, 10);
 const UNITS = ['mg', 'mcg', 'g', 'IE', 'ml', 'Tabl.', 'Kps.', 'Stk.', 'Zug', 'Einheit'];
 const FORMS = { inj: 'Injektion', oral: 'Oral', sc: 'Subkutan', other: 'Sonstiges' };
-const CATS = { ped: 'Steroide / PEDs', med: 'Medikamente', supp: 'Supplements', rec: 'Freizeit', other: 'Sonstiges' };
+const CATS = { ped: 'Steroide / PEDs', pep: 'Peptide', med: 'Medikamente', supp: 'Supplements', rec: 'Freizeit', other: 'Sonstiges' };
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#6366f1', '#f97316'];
 const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-// Rough default for how many days after a dose a substance still counts as "in the system". Adjustable per substance.
-const DEFAULT_ACTIVE = {
-  'Testosteron Enanthat': 14, 'Testosteron Undecanoat': 42, 'Primobolan': 14, 'Trenbolon Acetat': 3, 'Deca-Durabolin': 21,
-  'Anavar': 1, 'Dianabol': 1, 'HGH': 1, 'Retatrutide': 7, 'Arimidex': 3, 'Tamoxifen': 14, 'Diazepam': 3
-};
+// ---------- Reference half-lives (substances-db.js) ----------
+const normName = t => String(t || '').toLowerCase().replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9äöüß+.-]+/g, ' ').trim();
+const LEX = (window.SUBSTANCE_DB || []).map(([name, cat, h, range, aliases, note]) => ({ name, cat, h, range, aliases, note }));
+const LEX_KEYS = new Map();
+for (const e of LEX) for (const k of [e.name, ...e.aliases]) { const n = normName(k); if (n && !LEX_KEYS.has(n)) LEX_KEYS.set(n, e); }
+const lexCache = new Map();
+// Find the reference entry for a free-text name: exact name/alias first, then the longest alias contained in it.
+function lookup(name) {
+  if (lexCache.has(name)) return lexCache.get(name);
+  const n = normName(name);
+  let hit = LEX_KEYS.get(n) || null;
+  if (!hit && n) {
+    let best = 0;
+    for (const [k, e] of LEX_KEYS) if (k.length >= 3 && k.length > best && (' ' + n + ' ').includes(' ' + k + ' ')) { hit = e; best = k.length; }
+  }
+  lexCache.set(name, hit);
+  return hit;
+}
+// Duration until ~97 % is eliminated (5 half-lives).
+const inBloodHours = e => e && e.h ? e.h * 5 : null;
+function fmtDur(h) {
+  if (h == null) return 'unbekannt';
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))} Min.`;
+  if (h < 48) return `${fmtNum(h, h < 10 ? 1 : 0)} Std.`;
+  if (h < 24 * 60) return `${fmtNum(h / 24, h < 240 ? 1 : 0)} Tage`;
+  return `${fmtNum(h / 168, 0)} Wochen`;
+}
 const MOODS = [['😫', 'Mies'], ['😣', 'Schlecht'], ['😕', 'Mäßig'], ['😐', 'Okay'], ['🙂', 'Gut'], ['😄', 'Super']];
 
 // ---------- Helpers ----------
@@ -105,11 +127,25 @@ const getDay = k => (db.days[k] ||= {});
 const peekDay = k => db.days[k] || {};
 const logsOn = k => db.logs.filter(l => l.time.slice(0, 10) === k).sort((a, b) => a.time.localeCompare(b.time));
 const colorOf = l => (subById(l.subId) || db.substances.find(s => s.name === l.name) || {}).color || '#9ca3af';
-const activeDays = name => (db.settings.activeDays || {})[name] ?? DEFAULT_ACTIVE[name] ?? 0;
+const defaultActive = name => { const h = inBloodHours(lookup(name)); return h ? Math.round(h / 24) : 0; };
+const activeDays = name => (db.settings.activeDays || {})[name] ?? defaultActive(name);
+// Rough remaining amount in the body at time t (simple exponential decay, ignores depot absorption).
+function levelAt(name, t) {
+  const e = lookup(name);
+  if (!e || !e.h) return null;
+  let v = 0, unit = '', any = false;
+  for (const l of db.logs) {
+    if (l.name !== name || l.amount == null) continue;
+    const dt = (t - new Date(l.time)) / 3.6e6;
+    if (dt < 0) continue;
+    v += l.amount * Math.pow(0.5, dt / e.h); unit = l.unit; any = true;
+  }
+  return any ? { v, unit, e } : null;
+}
 function setActiveDays(name, v) {
   const n = num(v);
   db.settings.activeDays ||= {};
-  if (n == null) delete db.settings.activeDays[name]; else db.settings.activeDays[name] = Math.max(0, Math.round(n));
+  if (n == null || Math.round(n) === defaultActive(name)) delete db.settings.activeDays[name]; else db.settings.activeDays[name] = Math.max(0, Math.round(n));
   save();
 }
 // Substances not taken on day k but still within their after-effect window.
@@ -183,7 +219,7 @@ function header(title, sub, controls = '') {
 function render() {
   flushNote();
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  ({ day: renderDay, history: renderHistory, trends: renderTrends, plan: renderPlan, more: renderMore })[tab]();
+  ({ day: renderDay, history: renderHistory, trends: renderTrends, plan: renderPlan, more: renderMore, lexikon: renderLexikon })[tab]();
 }
 
 let noteTimer;
@@ -223,11 +259,14 @@ async function renderDay() {
 
   // Still in the system
   const sys = inSystem(k).filter(x => !logs.some(l => l.name === x.name) && !due.some(s => s.name === x.name));
-  if (sys.length) html += `<h2>Im System <span class="muted">wirkt noch nach</span></h2><div class="card">` + sys.map(x =>
-    `<div class="entry"><div class="row"><div class="dot" style="background:${esc(colorOf(x.l))}"></div><div class="grow name">${esc(x.name)}</div>
-      <span class="muted">noch ${x.ad - x.diff + 1} ${x.ad - x.diff + 1 === 1 ? 'Tag' : 'Tage'}</span></div>
-      <div class="muted" style="margin-left:22px">zuletzt ${fmtDay(x.d)}${x.l.amount != null ? ' · ' + fmtNum(x.l.amount) + ' ' + esc(x.l.unit) : ''}</div>
-      <div class="bar-bg" style="margin-left:22px"><i style="width:${Math.round((x.ad - x.diff + 1) / (x.ad + 1) * 100)}%;background:${esc(colorOf(x.l))}"></i></div></div>`).join('') + `</div>`;
+  const at = isToday ? Date.now() : parseDay(k).getTime() + 86399000;
+  if (sys.length) html += `<h2>Im System <span class="muted">wirkt noch nach</span></h2><div class="card">` + sys.map(x => {
+    const lv = levelAt(x.name, at);
+    return `<div class="entry" onclick="showLevel(${esc(JSON.stringify(x.name))})" style="cursor:pointer"><div class="row"><div class="dot" style="background:${esc(colorOf(x.l))}"></div><div class="grow name">${esc(x.name)}</div>
+      <span class="muted">noch ${x.ad - x.diff + 1} ${x.ad - x.diff + 1 === 1 ? 'Tag' : 'Tage'} ›</span></div>
+      <div class="muted" style="margin-left:22px">zuletzt ${fmtDay(x.d)}${x.l.amount != null ? ' · ' + fmtNum(x.l.amount) + ' ' + esc(x.l.unit) : ''}${lv ? ` · ≈ ${fmtNum(lv.v, lv.v < 10 ? 1 : 0)} ${esc(lv.unit)} im Körper` : ''}</div>
+      <div class="bar-bg" style="margin-left:22px"><i style="width:${Math.round((x.ad - x.diff + 1) / (x.ad + 1) * 100)}%;background:${esc(colorOf(x.l))}"></i></div></div>`;
+  }).join('') + `</div>`;
 
   // Planned but not ticked off in the last 7 days
   if (isToday) {
@@ -337,7 +376,7 @@ function quickLog(subId) {
   toast(`${s.name} eingetragen${site && s.form === 'inj' ? ' – Stelle: ' + site : ''}`);
 }
 
-function editLog(id, presetSub) {
+function editLog(id, presetSub, preset) {
   const l = id ? db.logs.find(x => x.id === id) : null;
   const s0 = l ? subById(l.subId) : subById(presetSub);
   const free = l ? !s0 : !presetSub;
@@ -349,9 +388,10 @@ function editLog(id, presetSub) {
       ${Object.entries(CATS).map(([c, t]) => { const list = db.substances.filter(s => s.category === c); return list.length ? `<optgroup label="${t}">${list.map(s => `<option value="${s.id}" ${s0 && s.id === s0.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</optgroup>` : ''; }).join('')}
     </select>
     <div id="freeBox">
-      <label>Name</label><input name="name" list="pastNames" autocomplete="off" value="${esc(l && free ? l.name : '')}" placeholder="z. B. Ibuprofen, Alkohol, …">
-      <datalist id="pastNames">${[...new Set(db.logs.filter(x => !x.subId).map(x => x.name))].sort().map(n => `<option value="${esc(n)}">`).join('')}</datalist>
-      <label>Kategorie</label><select name="category">${Object.entries(CATS).map(([c, t]) => `<option value="${c}" ${(l ? l.category : 'rec') === c ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <label>Name</label><input name="name" list="pastNames" autocomplete="off" value="${esc(l && free ? l.name : preset ? preset.name : '')}" placeholder="z. B. Ibuprofen, Alkohol, …">
+      <div class="muted" id="lexHint" style="margin-top:4px"></div>
+      <datalist id="pastNames">${[...new Set([...db.logs.filter(x => !x.subId).map(x => x.name).sort(), ...LEX.map(e => e.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <label>Kategorie</label><select name="category">${Object.entries(CATS).map(([c, t]) => `<option value="${c}" ${(l ? l.category : preset ? preset.category : 'rec') === c ? 'selected' : ''}>${t}</option>`).join('')}</select>
     </div>
     <div class="grid2">
       <div><label>Menge (optional)</label><input name="amount" inputmode="decimal" value="${l ? l.amount ?? '' : s0 ? s0.dose : ''}"></div>
@@ -374,10 +414,13 @@ function editLog(id, presetSub) {
     if (!first && s) { f.amount.value = s.dose; f.unit.value = s.unit; f.site.value = defaultSite(s); }
   };
   f.subId.addEventListener('change', () => sync(false)); sync(true);
-  // Picking a name used before fills in its last category and unit.
+  // Picking a name used before fills in its last category and unit; known substances show their half-life.
+  const hint = () => { const e = lookup(f.name.value); $('#lexHint').textContent = e ? `${e.name}: Halbwertszeit ${e.range} · im Blut ca. ${fmtDur(inBloodHours(e))}` : ''; };
+  f.name.addEventListener('input', hint); hint();
   f.name.addEventListener('change', () => {
     const prev = [...db.logs].reverse().find(x => x.name.toLowerCase() === f.name.value.trim().toLowerCase());
     if (prev && !l) { f.category.value = prev.category; f.unit.value = prev.unit || f.unit.value; if (prev.amount != null && !f.amount.value) f.amount.value = prev.amount; }
+    else if (!l) { const e = lookup(f.name.value); if (e) f.category.value = e.cat; }
   });
   if (!l && s0) f.site.value = defaultSite(s0);
   dlg.onclose = () => {
@@ -642,7 +685,7 @@ function lineChart(el, pts, o) {
   const n = Math.min(5, pts.length), step = Math.max(1, Math.round((pts.length - 1) / Math.max(1, n - 1)));
   for (let i = 0; i < pts.length; i += step) {
     const d = parseDay(pts[i].k);
-    const lbl = pts[pts.length - 1].k !== pts[pts.length - 1].end || pts.length > 60 ? d.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }) : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    const lbl = daysBetween(pts[0].k, pts[pts.length - 1].end) > 150 ? d.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }) : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
     s += `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : 'middle'}" font-size="11" fill="var(--muted)">${lbl}</text>`;
   }
   // Line segments; gaps where there is no data
@@ -678,7 +721,7 @@ window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTi
 
 // ---------- Plan ----------
 function renderPlan() {
-  header('Plan', `${db.substances.filter(s => s.active).length} aktiv`, `<button class="btn primary small" onclick="editSubstance()">＋ Neu</button>`);
+  header('Plan', `${db.substances.filter(s => s.active).length} aktiv`, `<button class="btn small" onclick="openLexikon()">Lexikon</button><button class="btn primary small" onclick="editSubstance()">＋ Neu</button>`);
   let html = '';
   for (const [c, t] of Object.entries(CATS)) {
     const list = db.substances.filter(s => s.category === c).sort((a, b) => (b.active - a.active) || a.name.localeCompare(b.name));
@@ -719,7 +762,7 @@ function editSubstance(id) {
       <div><label>Konzentration mg/ml</label><input name="conc" inputmode="decimal" value="${v.conc || ''}" placeholder="optional"></div>
       <div><label>Farbe</label><input name="color" type="color" value="${esc(v.color)}" style="height:43px;padding:4px"></div>
     </div>
-    <label>Wirkt nach (Tage im System nach der Einnahme)</label>
+    <label>Wirkt nach (Tage im System nach der Einnahme)${v.name && lookup(v.name) ? ` – Lexikon: ${defaultActive(v.name)} Tage` : ''}</label>
     <input name="afterDays" inputmode="numeric" value="${v.name ? activeDays(v.name) : ''}" placeholder="z. B. 14">
     <label>Rhythmus</label>
     <select name="mode">
@@ -787,6 +830,59 @@ function parseDates(t) {
   return [...new Set(out)].sort();
 }
 
+// ---------- Lexikon ----------
+let lexQ = '', lexCat = '', lexBack = 'more';
+function openLexikon() { lexBack = tab === 'lexikon' ? lexBack : tab; tab = 'lexikon'; render(); window.scrollTo(0, 0); }
+function renderLexikon() {
+  header('Lexikon', 'Halbwertszeiten & Zeit im Blut', `<button class="btn small" onclick="tab=lexBack;render()">Fertig</button>`);
+  $('#view').innerHTML = `<input id="lq" type="search" placeholder="Suchen, z. B. Xanax, Weed, Tren …" value="${esc(lexQ)}" oninput="lexQ=this.value;renderLexList()">
+    <div class="chips" style="margin:10px 0">${[['', 'Alle'], ['med', 'Medikamente'], ['ped', 'PEDs'], ['pep', 'Peptide'], ['rec', 'Freizeit'], ['supp', 'Supplements']].map(([c, t]) =>
+      `<button class="chip ${lexCat === c ? 'on' : ''}" onclick="lexCat='${c}';renderLexikon()">${t}</button>`).join('')}</div>
+    <div class="notice">Richtwerte aus der Fachliteratur – individuell stark unterschiedlich (Leber, Dosis, Dauerkonsum). „Im Blut“ ≈ 5 Halbwertszeiten (~97 % abgebaut). Keine medizinische Beratung.</div>
+    <div id="lexList"></div>`;
+  renderLexList();
+}
+function renderLexList() {
+  const q = normName(lexQ);
+  const list = LEX.filter(e => (!lexCat || e.cat === lexCat) && (!q || [e.name, ...e.aliases].some(a => normName(a).includes(q))))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  $('#lexList').innerHTML = list.length ? `<div class="card">${list.map(e => `<div class="entry row">
+    <div class="grow"><div class="name">${esc(e.name)} <span class="muted">${CATS[e.cat]}</span></div>
+      ${e.aliases.length ? `<div class="muted">${esc(e.aliases.slice(0, 5).join(', '))}</div>` : ''}
+      <div style="font-size:14px;margin-top:2px">Halbwertszeit: <b>${esc(e.range)}</b></div>
+      <div style="font-size:14px">Im Blut: <b>ca. ${fmtDur(inBloodHours(e))}</b></div>
+      ${e.note ? `<div class="muted">${esc(e.note)}</div>` : ''}</div>
+    <button class="btn small" aria-label="Eintragen" onclick="editLog(null, null, {name: ${esc(JSON.stringify(e.name))}, category: '${e.cat}'})">＋</button></div>`).join('')}</div>`
+    : `<div class="card empty">Nicht im Lexikon. Du kannst es trotzdem frei eintragen.</div>`;
+}
+
+// Estimated level curve for one substance (dialog).
+function showLevel(name) {
+  const e = lookup(name), dlg = $('#dlg');
+  dlg.onclose = null; dlg.returnValue = '';
+  const now = Date.now(), logs = db.logs.filter(l => l.name === name && l.amount != null).sort((a, b) => a.time.localeCompare(b.time));
+  const lv = levelAt(name, now);
+  dlg.innerHTML = `<h3>${esc(name)}</h3>
+    ${e ? `<div class="muted">Halbwertszeit ${esc(e.range)} · im Blut ca. ${fmtDur(inBloodHours(e))}${e.note ? ' · ' + esc(e.note) : ''}</div>` : `<div class="muted">Nicht im Lexikon – keine Kurve möglich.</div>`}
+    ${lv ? `<div class="stat"><div><div class="muted">Jetzt im Körper (geschätzt)</div><div class="v">≈ ${fmtNum(lv.v, lv.v < 10 ? 1 : 0)} ${esc(lv.unit)}</div></div></div>
+      <div class="chart" id="lvChart"></div>
+      <div class="muted" style="margin-top:6px">Grobe Schätzung aus deinen Einträgen (einfacher Abbau ab Einnahme, Depot-Aufnahme nicht berücksichtigt).</div>` : e && e.h ? '<div class="muted" style="margin-top:8px">Keine Einträge mit Menge.</div>' : ''}
+    <div class="actions"><button class="btn primary" onclick="$('#dlg').close()">Schließen</button></div>`;
+  dlg.showModal();
+  if (!lv) return;
+  const today = todayKey();
+  let from = logs[0].time.slice(0, 10);
+  if (daysBetween(from, today) > 120) from = addDays(today, -120);
+  const pts = [];
+  for (let k = from, i = 0; i < 400; k = addDays(k, 1), i++) {
+    const t = parseDay(k).getTime() + 12 * 3.6e6, r = levelAt(name, t);
+    pts.push({ k, end: k, v: r ? r.v : 0 });
+    if (k >= today && (!r || r.v < lv.v * 0.03 || daysBetween(today, k) > 120)) break;
+  }
+  const max = Math.max(...pts.map(p => p.v)) || 1, nice = Math.pow(10, Math.floor(Math.log10(max))), top = Math.ceil(max / nice) * nice;
+  lineChart($('#lvChart'), pts, { min: 0, max: top, ticks: [0, top / 2, top], fmt: v => fmtNum(v, v < 10 ? 1 : 0) + ' ' + lv.unit, label: v => fmtNum(v, v < 10 ? 1 : 0) });
+}
+
 // ---------- More: settings & backup ----------
 function renderMore() {
   header('Mehr', 'Einstellungen & Backup');
@@ -798,6 +894,7 @@ function renderMore() {
         <div><label>Ziel kcal / Tag</label><input inputmode="decimal" value="${g.kcalGoal ?? ''}" onchange="db.settings.kcalGoal=num(this.value);save()"></div>
         <div><label>Ziel Protein g / Tag</label><input inputmode="decimal" value="${g.proteinGoal ?? ''}" onchange="db.settings.proteinGoal=num(this.value);save()"></div>
       </div></div>
+    <h2>Lexikon</h2><div class="card row"><div class="grow muted">Halbwertszeiten von ${LEX.length} Medikamenten, PEDs, Peptiden und Freizeitsubstanzen</div><button class="btn" onclick="openLexikon()">Öffnen</button></div>
     <h2>Backup</h2><div class="card">
       <div class="muted">Alles liegt nur auf diesem iPhone. Lösche nicht die App vom Home-Bildschirm, ohne vorher ein Backup zu sichern (z. B. in „Dateien“ / iCloud Drive).</div>
       <div class="actions">
