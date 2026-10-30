@@ -26,6 +26,42 @@ function lookup(name) {
   lexCache.set(name, hit);
   return hit;
 }
+// ---------- Interactions (interactions.js) ----------
+const RULES = (window.INTERACTION_RULES || []).map(([sev, a, b, t]) => ({ sev, a: [].concat(a), b: [].concat(b), t }));
+const SEV = { 3: ['⛔', 'Gefährlich'], 2: ['⚠️', 'Riskant'], 1: ['ℹ️', 'Beachten'] };
+const classesOf = e => (e && (window.SUBSTANCE_CLASSES || {})[e.name]) || [];
+function pairIssues(n1, n2) {
+  const e1 = lookup(n1), e2 = lookup(n2);
+  if (!e1 || !e2 || e1 === e2) return [];
+  const c1 = classesOf(e1), c2 = classesOf(e2);
+  const has = (cs, list) => list.some(x => cs.includes(x));
+  const hits = RULES.filter(r => (has(c1, r.a) && has(c2, r.b)) || (has(c2, r.a) && has(c1, r.b)));
+  return [...new Map(hits.map(r => [r.t, r])).values()].sort((a, b) => b.sev - a.sev);
+}
+// Hours a dose counts as active for interaction checks.
+const ixWindowH = name => { const e = lookup(name); return e ? (window.INTERACTION_WINDOW_H || {})[e.name] ?? (e.h ? e.h * 5 : 24) : 24; };
+function activeNamesAt(t) {
+  const last = {};
+  for (const l of db.logs) { const lt = new Date(l.time).getTime(); if (lt <= t && (!last[l.name] || lt > last[l.name])) last[l.name] = lt; }
+  return Object.keys(last).filter(n => (t - last[n]) / 3.6e6 < ixWindowH(n));
+}
+function issuesAmong(names, focus) {
+  const list = [...new Set(names)], out = [], seen = new Set();
+  for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    if (focus && list[i] !== focus && list[j] !== focus) continue;
+    const r = pairIssues(list[i], list[j]);
+    if (!r.length) continue;
+    const key = [lookup(list[i]).name, lookup(list[j]).name].sort().join('|');
+    if (seen.has(key)) continue;
+    seen.add(key); out.push({ a: list[i], b: list[j], sev: r[0].sev, rules: r });
+  }
+  return out.sort((x, y) => y.sev - x.sev);
+}
+function issuesHtml(list) {
+  return list.map(x => `<div class="ix ix${x.sev}"><div class="row"><b class="grow">${SEV[x.sev][0]} ${esc(x.a)} + ${esc(x.b)}</b><span class="muted">${SEV[x.sev][1]}</span></div>
+    ${x.rules.map(r => `<div class="muted" style="color:var(--text)">${esc(r.t)}</div>`).join('')}</div>`).join('');
+}
+
 // Duration until ~97 % is eliminated (5 half-lives).
 const inBloodHours = e => e && e.h ? e.h * 5 : null;
 function fmtDur(h) {
@@ -239,6 +275,11 @@ async function renderDay() {
   html += `<h2>Wie fühlst du dich?</h2><div class="moods">` + MOODS.map(([e, t], i) =>
     `<button class="mood ${day.mood === i ? 'sel' : ''}" onclick="setMood(${i})" aria-label="${i} – ${t}"><span>${e}</span>${i}</button>`).join('') + `</div>`;
 
+  // Interactions among what is taken, planned or still active on this day
+  const dayEnd = isToday ? Date.now() : parseDay(k).getTime() + 86399000;
+  const ix = issuesAmong([...logs.map(l => l.name), ...activeNamesAt(dayEnd), ...due.map(s => s.name)]);
+  if (ix.length) html += `<h2>Wechselwirkungen <span class="muted">${ix.length}</span></h2>${issuesHtml(ix)}`;
+
   // Journal
   html += `<h2>Journal</h2><textarea id="note" data-day="${k}" placeholder="Wie war dein Tag? Training, Schlaf, Gedanken, Nebenwirkungen …" oninput="noteChanged(this.value)">${esc(day.note || '')}</textarea>`;
 
@@ -373,7 +414,9 @@ function quickLog(subId) {
   const site = defaultSite(s);
   db.logs.push({ id: uid(), subId, name: s.name, unit: s.unit, category: s.category, amount: s.dose, time: nowOn(curDay), site, note: '' });
   save(); renderDay();
-  toast(`${s.name} eingetragen${site && s.form === 'inj' ? ' – Stelle: ' + site : ''}`);
+  const worst = issuesAmong([s.name, ...activeNamesAt(Date.now()), ...logsOn(curDay).map(l => l.name)], s.name)[0];
+  toast(worst && worst.sev >= 2 ? `${SEV[worst.sev][0]} ${SEV[worst.sev][1]}: ${s.name} + ${worst.a === s.name ? worst.b : worst.a}`
+    : `${s.name} eingetragen${site && s.form === 'inj' ? ' – Stelle: ' + site : ''}`);
 }
 
 function editLog(id, presetSub, preset) {
@@ -393,6 +436,7 @@ function editLog(id, presetSub, preset) {
       <datalist id="pastNames">${[...new Set([...db.logs.filter(x => !x.subId).map(x => x.name).sort(), ...LEX.map(e => e.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist>
       <label>Kategorie</label><select name="category">${Object.entries(CATS).map(([c, t]) => `<option value="${c}" ${(l ? l.category : preset ? preset.category : 'rec') === c ? 'selected' : ''}>${t}</option>`).join('')}</select>
     </div>
+    <div id="ixBox" style="margin-top:10px"></div>
     <div class="grid2">
       <div><label>Menge (optional)</label><input name="amount" inputmode="decimal" value="${l ? l.amount ?? '' : s0 ? s0.dose : ''}"></div>
       <div><label>Einheit</label><select name="unit">${UNITS.map(u => `<option ${(l ? l.unit : s0 ? s0.unit : 'mg') === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
@@ -417,6 +461,15 @@ function editLog(id, presetSub, preset) {
   // Picking a name used before fills in its last category and unit; known substances show their half-life.
   const hint = () => { const e = lookup(f.name.value); $('#lexHint').textContent = e ? `${e.name}: Halbwertszeit ${e.range} · im Blut ca. ${fmtDur(inBloodHours(e))}` : ''; };
   f.name.addEventListener('input', hint); hint();
+  const ixCheck = () => {
+    const s = subById(f.subId.value), name = s ? s.name : f.name.value.trim(), t = new Date(f.time.value).getTime();
+    if (!name || !isFinite(t)) { $('#ixBox').innerHTML = ''; return; }
+    const d = f.time.value.slice(0, 10);
+    const others = [...activeNamesAt(t), ...logsOn(d).map(x => x.name), ...db.substances.filter(x => isDue(x, d)).map(x => x.name)].filter(n => n !== name);
+    $('#ixBox').innerHTML = issuesHtml(issuesAmong([name, ...others], name));
+  };
+  ['change', 'input'].forEach(ev => { f.name.addEventListener(ev, ixCheck); f.subId.addEventListener(ev, ixCheck); f.time.addEventListener(ev, ixCheck); });
+  ixCheck();
   f.name.addEventListener('change', () => {
     const prev = [...db.logs].reverse().find(x => x.name.toLowerCase() === f.name.value.trim().toLowerCase());
     if (prev && !l) { f.category.value = prev.category; f.unit.value = prev.unit || f.unit.value; if (prev.amount != null && !f.amount.value) f.amount.value = prev.amount; }
@@ -838,9 +891,22 @@ function renderLexikon() {
   $('#view').innerHTML = `<input id="lq" type="search" placeholder="Suchen, z. B. Xanax, Weed, Tren …" value="${esc(lexQ)}" oninput="lexQ=this.value;renderLexList()">
     <div class="chips" style="margin:10px 0">${[['', 'Alle'], ['med', 'Medikamente'], ['ped', 'PEDs'], ['pep', 'Peptide'], ['rec', 'Freizeit'], ['supp', 'Supplements']].map(([c, t]) =>
       `<button class="chip ${lexCat === c ? 'on' : ''}" onclick="lexCat='${c}';renderLexikon()">${t}</button>`).join('')}</div>
+    <div class="card"><div class="name">Kombi-Check</div>
+      <div class="grid2"><div><input id="cA" list="lexNames" placeholder="Substanz 1" oninput="comboCheck()"></div><div><input id="cB" list="lexNames" placeholder="Substanz 2" oninput="comboCheck()"></div></div>
+      <datalist id="lexNames">${LEX.map(e => `<option value="${esc(e.name)}">`).join('')}</datalist>
+      <div id="cRes" style="margin-top:10px"></div></div>
     <div class="notice">Richtwerte aus der Fachliteratur – individuell stark unterschiedlich (Leber, Dosis, Dauerkonsum). „Im Blut“ ≈ 5 Halbwertszeiten (~97 % abgebaut). Keine medizinische Beratung.</div>
     <div id="lexList"></div>`;
   renderLexList();
+}
+function comboCheck() {
+  const a = $('#cA').value.trim(), b = $('#cB').value.trim(), box = $('#cRes');
+  if (!a || !b) { box.innerHTML = ''; return; }
+  const ea = lookup(a), eb = lookup(b);
+  if (!ea || !eb) { box.innerHTML = `<div class="muted">${esc(!ea ? a : b)} ist nicht im Lexikon.</div>`; return; }
+  const r = pairIssues(a, b);
+  box.innerHTML = r.length ? issuesHtml([{ a: ea.name, b: eb.name, sev: r[0].sev, rules: r }])
+    : `<div class="muted">Keine bekannte Wechselwirkung in der App-Datenbank. Das heißt nicht, dass es sicher ist.</div>`;
 }
 function renderLexList() {
   const q = normName(lexQ);

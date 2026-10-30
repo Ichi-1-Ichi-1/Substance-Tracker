@@ -1,5 +1,5 @@
-const CACHE = 'tracker-v7';
-const ASSETS = ['./', './index.html', './app.js', './substances-db.js', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png', './vendor/pdf.min.js', './vendor/pdf.worker.min.js'];
+const CACHE = 'tracker-v8';
+const ASSETS = ['./', './index.html', './app.js', './substances-db.js', './interactions.js', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png', './vendor/pdf.min.js', './vendor/pdf.worker.min.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

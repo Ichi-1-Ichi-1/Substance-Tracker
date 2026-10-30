@@ -17,18 +17,21 @@
     --bg: #f4f5f7; --card: #ffffff; --text: #111827; --muted: #6b7280;
     --border: #e5e7eb; --grid: #eceef1; --accent: #b45309; --accent-text: #ffffff;
     --ok: #15803d; --warn: #dc2626; --chip: #f3f4f6; --sel: #fef3c7;
+    --sev3: #dc2626; --sev2: #ea580c; --sev1: #ca8a04;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #0b0f17; --card: #151b26; --text: #e5e7eb; --muted: #9ca3af;
       --border: #263041; --grid: #1e2633; --accent: #f59e0b; --accent-text: #111827;
       --ok: #22c55e; --warn: #f87171; --chip: #1f2937; --sel: #3a2a0a;
+      --sev3: #f87171; --sev2: #fb923c; --sev1: #facc15;
     }
   }
   :root[data-theme="dark"] {
     --bg: #0b0f17; --card: #151b26; --text: #e5e7eb; --muted: #9ca3af;
     --border: #263041; --grid: #1e2633; --accent: #f59e0b; --accent-text: #111827;
     --ok: #22c55e; --warn: #f87171; --chip: #1f2937; --sel: #3a2a0a;
+      --sev3: #f87171; --sev2: #fb923c; --sev1: #facc15;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; }
@@ -82,6 +85,9 @@
   .done { color: var(--ok); font-weight: 600; font-size: 14px; white-space: nowrap; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border: 1px solid var(--border); background: var(--chip); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
+  .ix { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--sev1); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .ix2 { border-left-color: var(--sev2); }
+  .ix3 { border-left-color: var(--sev3); }
   .chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
   label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
   input, select, textarea {
@@ -158,6 +164,7 @@
 <dialog id="dlg"></dialog>
 <div class="toast" id="toast"></div>
 <script src="substances-db.js"></script>
+<script src="interactions.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
