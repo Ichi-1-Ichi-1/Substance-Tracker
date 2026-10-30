@@ -1,6 +1,6 @@
 {
-  "name": "Substance Tracker",
-  "short_name": "Tracker",
+  "name": "Halbwert – Substanz-Tagebuch",
+  "short_name": "Halbwert",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -8,8 +8,26 @@
   "theme_color": "#0b0f17",
   "lang": "de",
   "icons": [
-    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "description": "Privates Substanz-Tagebuch für Harm Reduction: Einnahmen, Stimmung, Halbwertszeiten und Wechselwirkungs-Hinweise. Alle Daten bleiben auf deinem Gerät.",
+  "categories": [
+    "health",
+    "medical",
+    "lifestyle"
   ]
 }

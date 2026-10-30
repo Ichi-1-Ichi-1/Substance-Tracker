@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Substance Tracker</title>
+<title>Halbwert</title>
+<meta name="description" content="Halbwert – privates Substanz-Tagebuch für Harm Reduction: Einnahmen, Stimmung, Halbwertszeiten und Wechselwirkungs-Hinweise. Alle Daten bleiben auf deinem Gerät.">
 <meta name="theme-color" content="#0b0f17">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="apple-mobile-web-app-title" content="Halbwert">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -88,6 +89,13 @@
   .ix { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--sev1); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
   .ix2 { border-left-color: var(--sev2); }
   .ix3 { border-left-color: var(--sev3); }
+  .onb h3 { font-size: 22px; margin-bottom: 4px; }
+  .onb ul { padding-left: 0; list-style: none; margin: 14px 0; }
+  .onb li { display: flex; gap: 10px; margin-bottom: 12px; font-size: 14px; }
+  .onb li span { font-size: 20px; line-height: 1.2; }
+  .help a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .help .entry a { white-space: nowrap; }
+  .help .entry .grow { overflow-wrap: anywhere; }
   .chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
   label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
   input, select, textarea {

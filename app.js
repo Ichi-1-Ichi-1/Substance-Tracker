@@ -59,7 +59,8 @@ function issuesAmong(names, focus) {
 }
 function issuesHtml(list) {
   return list.map(x => `<div class="ix ix${x.sev}"><div class="row"><b class="grow">${SEV[x.sev][0]} ${esc(x.a)} + ${esc(x.b)}</b><span class="muted">${SEV[x.sev][1]}</span></div>
-    ${x.rules.map(r => `<div class="muted" style="color:var(--text)">${esc(r.t)}</div>`).join('')}</div>`).join('');
+    ${x.rules.map(r => `<div class="muted" style="color:var(--text)">${esc(r.t)}</div>`).join('')}
+    ${x.sev === 3 ? `<div class="muted help" style="margin-top:4px">Bei Atemproblemen, Bewusstlosigkeit oder Krampfanfall: <a href="tel:112">112 anrufen</a> · <a href="#" onclick="showHelp();return false">Hilfe</a></div>` : ''}</div>`).join('');
 }
 
 // Duration until ~97 % is eliminated (5 half-lives).
@@ -949,6 +950,42 @@ function showLevel(name) {
   lineChart($('#lvChart'), pts, { min: 0, max: top, ticks: [0, top / 2, top], fmt: v => fmtNum(v, v < 10 ? 1 : 0) + ' ' + lv.unit, label: v => fmtNum(v, v < 10 ? 1 : 0) });
 }
 
+// ---------- Onboarding, help & legal ----------
+const ONB_KEY = 'halbwert-onboarded-v1';
+function showOnboarding() {
+  const dlg = $('#dlg');
+  dlg.onclose = null; dlg.returnValue = '';
+  dlg.innerHTML = `<div class="onb"><h3>Willkommen bei Halbwert</h3>
+    <div class="muted">Dein privates Substanz-Tagebuch für mehr Überblick und Sicherheit.</div>
+    <ul>
+      <li><span>📋</span><div><b>Dokumentieren statt raten.</b> Medikamente, Hormontherapie, Supplements und andere Substanzen festhalten – mit Stimmung und Journal.</div></li>
+      <li><span>🛡️</span><div><b>Harm Reduction.</b> Halbwertszeiten und Hinweise auf gefährliche Wechselwirkungen helfen, Risiken zu erkennen und zu senken.</div></li>
+      <li><span>🔒</span><div><b>Privat.</b> Kein Konto, keine Cloud, kein Tracking. Alles bleibt auf diesem Gerät.</div></li>
+      <li><span>🩺</span><div><b>Kein Ersatz für ärztlichen Rat.</b> Die Angaben sind Richtwerte. Besprich Medikamente und Risiken mit Ärztin oder Arzt. Im Notfall: 112.</div></li>
+    </ul>
+    <label style="display:flex;gap:8px;align-items:flex-start;color:var(--text);margin:0"><input type="checkbox" id="onbAge" style="width:auto;margin-top:3px">
+      Ich bin mindestens 18 Jahre alt und habe verstanden, dass Halbwert keine medizinische Beratung ersetzt.</label>
+    <div class="actions"><button class="btn primary" id="onbOk" disabled>Los geht's</button></div></div>`;
+  dlg.querySelector('#onbAge').onchange = e => { dlg.querySelector('#onbOk').disabled = !e.target.checked; };
+  dlg.querySelector('#onbOk').onclick = () => { try { localStorage.setItem(ONB_KEY, new Date().toISOString()); } catch (e) {} dlg.close(); };
+  dlg.addEventListener('cancel', e => { if (!dlg.querySelector('#onbAge')?.checked) e.preventDefault(); }, { once: true });
+  dlg.showModal();
+}
+function showHelp() {
+  const dlg = $('#dlg');
+  dlg.onclose = null; dlg.returnValue = '';
+  const n = (label, num, tel) => `<div class="entry row"><div class="grow">${label}</div><a href="tel:${tel || num.replace(/\s/g, '')}">${num}</a></div>`;
+  dlg.innerHTML = `<div class="help"><h3>Hilfe & Notfall</h3>
+    <div class="ix ix3" style="margin-top:10px"><b>Notfall: 112</b><div class="muted" style="color:var(--text)">Bei Bewusstlosigkeit, Atemproblemen, Krampfanfall, Brustschmerz oder Überhitzung sofort den Notruf wählen. Sag ehrlich, was genommen wurde – das rettet Leben.</div></div>
+    <h2>Deutschland</h2><div class="card">
+      ${n('Notruf', '112')}${n('Giftnotruf (Berlin, 24 h)', '030 19240')}${n('Sucht & Drogen Hotline', '01806 313031')}${n('TelefonSeelsorge (24 h, kostenlos)', '0800 111 0 111')}</div>
+    <h2>Österreich</h2><div class="card">${n('Notruf', '144')}${n('Vergiftungsinformation (VIZ)', '01 406 43 43')}${n('Telefonseelsorge', '142')}</div>
+    <h2>Schweiz</h2><div class="card">${n('Notruf', '144')}${n('Tox Info Suisse', '145')}${n('Die Dargebotene Hand', '143')}</div>
+    <div class="muted">Beratung zu Substanzkonsum, auch anonym: örtliche Drogen- und Suchtberatungsstellen, Drug-Checking-Angebote, Hausarzt oder Hausärztin.</div>
+    <div class="actions"><button class="btn primary" onclick="$('#dlg').close()">Schließen</button></div></div>`;
+  dlg.showModal();
+}
+
 // ---------- More: settings & backup ----------
 function renderMore() {
   header('Mehr', 'Einstellungen & Backup');
@@ -962,13 +999,19 @@ function renderMore() {
       </div></div>
     <h2>Lexikon</h2><div class="card row"><div class="grow muted">Halbwertszeiten von ${LEX.length} Medikamenten, PEDs, Peptiden und Freizeitsubstanzen</div><button class="btn" onclick="openLexikon()">Öffnen</button></div>
     <h2>Backup</h2><div class="card">
-      <div class="muted">Alles liegt nur auf diesem iPhone. Lösche nicht die App vom Home-Bildschirm, ohne vorher ein Backup zu sichern (z. B. in „Dateien“ / iCloud Drive).</div>
+      <div class="muted">Alles liegt nur auf diesem Gerät. Lösche nicht die App vom Home-Bildschirm, ohne vorher ein Backup zu sichern (z. B. in „Dateien“ / iCloud Drive).</div>
       <div class="actions">
         <button class="btn primary" onclick="exportJson()">Backup sichern</button>
         <button class="btn" onclick="$('#importFile').click()">Backup laden</button>
         <button class="btn" onclick="exportCsv()">Einträge als CSV</button>
         <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importJson(this.files[0])">
       </div></div>
+    <h2>Hilfe & Infos</h2><div class="card">
+      <div class="entry row"><div class="grow"><div class="name">Hilfe & Notfall</div><div class="muted">Notrufnummern, Giftnotruf, Beratung</div></div><button class="btn small" onclick="showHelp()">Öffnen</button></div>
+      <div class="entry row"><div class="grow"><div class="name">Über Halbwert</div><div class="muted">Zweck, Datenquellen, Grenzen</div></div><a class="btn small" href="support.html">Öffnen</a></div>
+      <div class="entry row"><div class="grow"><div class="name">Datenschutz</div><div class="muted">Keine Datenerhebung – alles bleibt lokal</div></div><a class="btn small" href="privacy.html">Öffnen</a></div>
+      <div class="entry row"><div class="grow"><div class="name">Einführung erneut anzeigen</div></div><button class="btn small" onclick="showOnboarding()">Anzeigen</button></div>
+    </div>
     <h2>Darstellung</h2><div class="card"><div class="seg">
       ${[['', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']].map(([t, n]) => `<button class="${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" onclick="setTheme('${t}')">${n}</button>`).join('')}</div></div>
     <div class="card"><div class="muted">${db.substances.length} im Plan · ${db.logs.length} Einträge · ${Object.keys(db.days).length} Tage</div>
@@ -1040,6 +1083,9 @@ function setTheme(t) {
   }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   render();
+  let onboarded = false;
+  try { onboarded = !!localStorage.getItem(ONB_KEY); } catch (e) {}
+  if (!onboarded) showOnboarding();
   // Re-render when the app comes back to the foreground on a new day.
   let lastDay = todayKey();
   document.addEventListener('visibilitychange', () => {
