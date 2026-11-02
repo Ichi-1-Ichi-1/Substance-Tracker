@@ -21,3 +21,11 @@ All data lives only on the device (IndexedDB). No build step; the service worker
 3. Start it from the home screen. From then on it works without internet.
 
 `vendor/` contains pdf.js 3.11.174 (Apache-2.0, see `vendor/pdfjs-LICENSE`).
+
+## iOS app (App Store)
+
+Native wrapper with Capacitor 8 (`ios/`), see [APPSTORE.md](APPSTORE.md) section 9.
+
+- `npm ci && npm run build` – copies the web app into `www/` and bundles `native/bridge.js` (reminders, Face ID lock, share sheet)
+- `npx cap sync ios` – updates the Xcode project
+- CI: `.github/workflows/ios.yml` compiles on every push; a manual run with `testflight` signs and uploads (needs App Store Connect API key secrets)

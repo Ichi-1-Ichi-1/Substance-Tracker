@@ -134,6 +134,7 @@ let saving = Promise.resolve();
 function save() {
   const snapshot = JSON.parse(JSON.stringify(db));
   saving = saving.then(() => kvSet('db', snapshot)).catch(() => toast('Speichern fehlgeschlagen – bitte Backup exportieren!'));
+  scheduleReminders();
   return saving;
 }
 
@@ -950,6 +951,76 @@ function showLevel(name) {
   lineChart($('#lvChart'), pts, { min: 0, max: top, ticks: [0, top / 2, top], fmt: v => fmtNum(v, v < 10 ? 1 : 0) + ' ' + lv.unit, label: v => fmtNum(v, v < 10 ? 1 : 0) });
 }
 
+// ---------- iOS app: reminders and app lock (only when running natively) ----------
+const NATIVE = !!(window.Native && window.Native.isNative);
+const prefGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const prefSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+
+// One generic notification per day with planned items – no substance names on the lock screen.
+let reminderTimer;
+function scheduleReminders() {
+  if (!NATIVE) return;
+  clearTimeout(reminderTimer);
+  reminderTimer = setTimeout(async () => {
+    const r = prefGet('halbwert-reminder', { on: false, time: '09:00' });
+    const list = [];
+    if (r.on) {
+      const [hh, mm] = r.time.split(':').map(Number), now = Date.now();
+      for (let i = 0; i < 30; i++) {
+        const k = addDays(todayKey(), i), at = parseDay(k);
+        at.setHours(hh, mm, 0, 0);
+        if (at.getTime() <= now) continue;
+        const open = db.substances.filter(s => isDue(s, k) && logsOn(k).filter(l => l.subId === s.id).length < (s.timesPerDay || 1)).length;
+        if (open) list.push({ id: 1000 + i, at, title: 'Halbwert', body: open === 1 ? 'Für heute ist 1 Eintrag geplant.' : `Für heute sind ${open} Einträge geplant.` });
+      }
+    }
+    try { await window.Native.setReminders(list); } catch (e) {}
+  }, 800);
+}
+async function setReminder(on, time) {
+  const r = prefGet('halbwert-reminder', { on: false, time: '09:00' });
+  if (on != null) r.on = on;
+  if (time) r.time = time;
+  if (r.on && !(await window.Native.notificationsAllowed(true))) { r.on = false; toast('Mitteilungen sind in den iOS-Einstellungen deaktiviert'); }
+  prefSet('halbwert-reminder', r);
+  scheduleReminders(); renderMore();
+}
+
+let locked = false, unlocking = false;
+function lockScreen(show) {
+  let el = $('#lock');
+  if (!show) { if (el) el.remove(); locked = false; return; }
+  locked = true;
+  if (el) return;
+  el = document.createElement('div');
+  el.id = 'lock';
+  el.innerHTML = `<img src="icon-180.png" alt="" width="72" height="72" style="border-radius:16px"><div class="name" style="font-size:20px">Halbwert ist gesperrt</div>
+    <button class="btn primary" onclick="tryUnlock()">Entsperren</button>`;
+  document.body.appendChild(el);
+}
+async function tryUnlock() {
+  if (unlocking) return;
+  unlocking = true;
+  const ok = await window.Native.unlock('Entsperre dein Tagebuch');
+  unlocking = false;
+  if (ok) lockScreen(false);
+}
+async function setAppLock(on) {
+  if (on) {
+    if (!(await window.Native.biometryAvailable())) { toast('Face ID / Code ist auf diesem Gerät nicht eingerichtet'); renderMore(); return; }
+    if (!(await window.Native.unlock('App-Sperre einschalten'))) { renderMore(); return; }
+  }
+  prefSet('halbwert-lock', !!on); renderMore();
+}
+if (NATIVE) {
+  // Cover the content when leaving the app (also hides it in the app switcher), ask again on return.
+  document.addEventListener('visibilitychange', () => {
+    if (!prefGet('halbwert-lock', false) || unlocking) return;
+    if (document.visibilityState === 'hidden') lockScreen(true);
+    else if (locked) tryUnlock();
+  });
+}
+
 // ---------- Onboarding, help & legal ----------
 const ONB_KEY = 'halbwert-onboarded-v1';
 function showOnboarding() {
@@ -1006,6 +1077,12 @@ function renderMore() {
         <button class="btn" onclick="exportCsv()">Einträge als CSV</button>
         <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importJson(this.files[0])">
       </div></div>
+    ${NATIVE ? (() => { const r = prefGet('halbwert-reminder', { on: false, time: '09:00' }); return `<h2>Erinnerungen & Sicherheit</h2><div class="card">
+      <label style="display:flex;align-items:center;gap:8px;color:var(--text);margin:0"><input type="checkbox" style="width:auto" ${r.on ? 'checked' : ''} onchange="setReminder(this.checked)"> Tägliche Erinnerung an geplante Einträge</label>
+      <div class="grid2"><div><label>Uhrzeit</label><input type="time" value="${r.time}" onchange="setReminder(null, this.value)"></div></div>
+      <div class="muted" style="margin-top:6px">Die Mitteilung nennt keine Substanzen – nur die Anzahl der geplanten Einträge.</div>
+      <label style="display:flex;align-items:center;gap:8px;color:var(--text);margin:14px 0 0"><input type="checkbox" style="width:auto" ${prefGet('halbwert-lock', false) ? 'checked' : ''} onchange="setAppLock(this.checked)"> App mit Face ID / Code sperren</label>
+    </div>`; })() : ''}
     <h2>Hilfe & Infos</h2><div class="card">
       <div class="entry row"><div class="grow"><div class="name">Hilfe & Notfall</div><div class="muted">Notrufnummern, Giftnotruf, Beratung</div></div><button class="btn small" onclick="showHelp()">Öffnen</button></div>
       <div class="entry row"><div class="grow"><div class="name">Über Halbwert</div><div class="muted">Zweck, Datenquellen, Grenzen</div></div><a class="btn small" href="support.html">Öffnen</a></div>
@@ -1020,6 +1097,10 @@ function renderMore() {
 
 function blobToDataUrl(b) { return new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); }
 async function shareOrDownload(name, blob) {
+  if (NATIVE) {
+    try { await window.Native.shareFile(name, await blob.text()); } catch (e) { if (!/cancel/i.test(String(e && e.message))) toast('Teilen nicht möglich'); }
+    return;
+  }
   const file = new File([blob], name, { type: blob.type });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
@@ -1082,7 +1163,9 @@ function setTheme(t) {
     toast('Speicher nicht verfügbar – Daten werden nicht gesichert');
   }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  if (NATIVE && prefGet('halbwert-lock', false)) { lockScreen(true); tryUnlock(); }
   render();
+  scheduleReminders();
   let onboarded = false;
   try { onboarded = !!localStorage.getItem(ONB_KEY); } catch (e) {}
   if (!onboarded) showOnboarding();

@@ -240,19 +240,38 @@ Stand meines Wissens, vor der Einreichung im App Store gegenprüfen.
 | **5.1.3** Gesundheitsdaten | mittel | ✅ nur lokal, keine Übertragung |
 | **2.3** korrekte Metadaten | mittel | ✅ Texte beschreiben exakt die Funktionen |
 | **Altersfreigabe** | Pflicht | ✅ 18+ + In-App-Bestätigung |
-| **4.2** Mindestfunktionalität (reine Web-Hülle wird oft abgelehnt) | **hoch** | ⚠️ Siehe Abschnitt 9 |
+| **4.2** Mindestfunktionalität (reine Web-Hülle wird oft abgelehnt) | mittel | ✅ Native iOS-App mit lokal gebündelten Dateien (kein Laden einer Website), Erinnerungen per Mitteilung, Face-ID-Sperre, iOS-Teilen-Menü, voll offline |
+| **Privacy Manifest** (PrivacyInfo.xcprivacy) | Pflicht | ✅ kein Tracking, keine Datenerhebung, API-Gründe angegeben |
+| **Berechtigungstexte** (Face ID, Kamera, Fotos) | Pflicht | ✅ auf Deutsch, mit konkretem Zweck |
+| **Exportkontrolle** (Verschlüsselung) | Pflicht | ✅ `ITSAppUsesNonExemptEncryption = NO` |
+| **App-Icon 1024 px ohne Transparenz, eigener Startbildschirm** | Pflicht | ✅ |
+| **Nur iPhone, Hochformat** | – | ✅ keine iPad-Screenshots nötig |
 | **Screenshots** | mittel | ⚠️ mit Demo-Daten neu aufnehmen |
 
 ---
 
-## 9. Technischer Weg in den App Store (Funktionen bleiben gleich)
+## 9. Technischer Weg in den App Store
 
-1. **Apple Developer Program** (99 €/Jahr) unter developer.apple.com
-2. **Native Hülle:** Die Web-App wird mit **Capacitor** in eine iOS-App verpackt. Der Code bleibt gleich.
-3. **Bauen:** Xcode auf einem Mac oder ein Cloud-Build-Dienst (z. B. Codemagic, Ionic Appflow), falls kein Mac vorhanden
-4. **Gegen 4.2 absichern:** Apple lehnt reine Web-Hüllen oft ab. Starke Argumente sind, dass die App komplett offline läuft und kein Konto hat. Zusätzlich hilfreich (später, optional): lokale Erinnerungen per Push, App-Sperre mit Face ID, Apple-Health-Export
-5. **TestFlight-Beta**, dann Einreichung mit den Texten oben
+**Erledigt (im Repo):**
+- Native iOS-App mit Capacitor 8 (`ios/`), alle Dateien lokal gebündelt
+- Native Funktionen: tägliche Erinnerung (ohne Substanznamen auf dem Sperrbildschirm), App-Sperre mit Face ID / Code, Backup und Export über das iOS-Teilen-Menü
+- Privacy Manifest, Berechtigungstexte, Exportkontrolle, Icon, Startbildschirm
+- Automatischer Build auf GitHub (`.github/workflows/ios.yml`): Jeder Push wird auf einem Mac kompiliert. Ein manueller Lauf mit „testflight“ signiert die App und lädt sie zu TestFlight hoch. Dafür braucht es **keinen eigenen Mac**.
 
+**Deine Schritte (einmalig):**
+1. **Apple Developer Program** beitreten (99 €/Jahr): developer.apple.com/programs
+2. **Bundle-ID festlegen:** Aktuell `de.halbwert.app`. Falls die vergeben ist, in `capacitor.config.json` und im Xcode-Projekt ändern (Claude macht das).
+3. **App Store Connect → Apps → ＋ Neue App:** Name „Halbwert“, Sprache Deutsch, Bundle-ID wie oben
+4. **App Store Connect → Benutzer und Zugriff → Integrationen → API-Schlüssel:** neuen Schlüssel mit Rolle „App-Manager“ erstellen, `.p8`-Datei herunterladen, Key-ID und Issuer-ID notieren
+5. **GitHub → Repo → Settings → Secrets and variables → Actions:** 4 Secrets anlegen:
+   - `APPLE_TEAM_ID`: Team-ID (developer.apple.com → Membership)
+   - `ASC_KEY_ID`: Key-ID
+   - `ASC_ISSUER_ID`: Issuer-ID
+   - `ASC_KEY_P8_BASE64`: Inhalt der `.p8`-Datei als Base64
+6. **GitHub → Actions → iOS → Run workflow → „testflight“ anhaken.** Nach ca. 15 Minuten ist der Build in TestFlight.
+7. In App Store Connect: Texte, Screenshots, Altersfreigabe und Datenschutz aus diesem Dokument eintragen → **Zur Prüfung einreichen**
+
+**Lokal bauen (optional, mit Mac):** `npm ci && npm run ios:sync && npx cap open ios`
 ---
 
 ## 10. Offene Punkte vor der Einreichung

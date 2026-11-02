@@ -1,0 +1,22 @@
+{
+  "name": "halbwert",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Halbwert – private harm-reduction substance journal",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "ios:sync": "npm run build && npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/share": "^8.0.3",
+    "@capgo/capacitor-native-biometric": "^8.9.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
+    "esbuild": "^0.28.2"
+  }
+}
