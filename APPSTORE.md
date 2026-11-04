@@ -91,6 +91,7 @@ SICHER KOMBINIEREN
 • Hinweise auf riskante Wechselwirkungen – z. B. L-Tryptophan + Antidepressiva, Vitamin K + Blutverdünner, Magnesium + bestimmte Antibiotika, Johanniskraut + Medikamente, Opioide + Beruhigungsmittel oder Alkohol
 • Berücksichtigt alles, was noch im Körper aktiv ist
 • Kombi-Check für zwei beliebige Substanzen
+• Hinweise auf Gewöhnung und Abhängigkeit, wenn ein Konsummuster riskant wird – inklusive Warnung, wenn die Stimmung nur scheinbar besser ist
 • Notrufnummern und Beratungsstellen für DE, AT und CH
 
 100 % PRIVAT
@@ -131,6 +132,7 @@ COMBINE SAFELY
 • Flags risky interactions — e.g. L-tryptophan + antidepressants, vitamin K + blood thinners, magnesium + certain antibiotics, St John's wort + medications, opioids + sedatives or alcohol
 • Considers everything still active in your body
 • Combination check for any two substances
+• Alerts on tolerance and dependence when a usage pattern becomes risky — including when better mood on use days is misleading
 • Emergency and counselling numbers for Germany, Austria and Switzerland
 
 100% PRIVATE

@@ -63,6 +63,50 @@ function issuesHtml(list) {
     ${x.sev === 3 ? `<div class="muted help" style="margin-top:4px">Bei Atemproblemen, Bewusstlosigkeit oder Krampfanfall: <a href="tel:112">112 anrufen</a> · <a href="#" onclick="showHelp();return false">Hilfe</a></div>` : ''}</div>`).join('');
 }
 
+// ---------- Gewöhnung & Abhängigkeit (DEPENDENCE_RULES in interactions.js) ----------
+const DEP_RULES = window.DEPENDENCE_RULES || [];
+const DEP_ICON = { 3: '⛔', 2: '⚠️', 1: 'ℹ️' };
+const depRuleFor = e => { const cs = classesOf(e); return DEP_RULES.find(r => cs.includes(r.cls)) || null; };
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+// Usage patterns up to day k that commonly lead to tolerance or dependence.
+function dependenceAlerts(k) {
+  const groups = {}; // canonical entry name -> { label, days:Set }
+  for (const l of db.logs) {
+    const d = l.time.slice(0, 10);
+    if (d > k || daysBetween(d, k) >= 84) continue;
+    const e = lookup(l.name);
+    if (!e || !depRuleFor(e)) continue;
+    (groups[e.name] ||= { e, label: l.name, days: new Set() }).days.add(d);
+  }
+  const out = [];
+  for (const g of Object.values(groups)) {
+    const r = depRuleFor(g.e);
+    const days = [...g.days].filter(d => daysBetween(d, k) < r.window);
+    const count = r.weeks ? new Set(days.map(d => Math.floor(daysBetween(d, k) / 7))).size : days.length;
+    if (count < r.min) continue;
+    // Mood on days with vs. without use inside the window
+    const withM = [], withoutM = [], used = new Set(days);
+    for (let i = 0; i < r.window; i++) {
+      const d = addDays(k, -i), m = peekDay(d).mood;
+      if (m != null) (used.has(d) ? withM : withoutM).push(m);
+    }
+    const planned = db.substances.some(s => s.active && s.mode !== 'asneeded' && lookup(s.name) === g.e);
+    out.push({ ...g, r, count, level: Math.max(1, r.level - (planned ? 1 : 0)), planned, moodWith: avg(withM), moodWithout: avg(withoutM) });
+  }
+  return out.sort((a, b) => b.level - a.level);
+}
+function dependenceHtml(list) {
+  return list.map(x => {
+    const unit = x.r.weeks ? `in ${x.count} der letzten ${x.r.window / 7} Wochen` : `an ${x.count} der letzten ${x.r.window} Tage`;
+    const moodTrap = x.moodWith != null && x.moodWithout != null && x.moodWith - x.moodWithout >= 0.5;
+    return `<div class="ix ix${x.level}"><div class="row"><b class="grow">${DEP_ICON[x.level]} ${esc(x.label)}</b><span class="muted">${unit}</span></div>
+      <div class="muted" style="color:var(--text)">${esc(x.r.text)}</div>
+      ${moodTrap ? `<div class="muted" style="color:var(--text);margin-top:4px"><b>Stimmung:</b> Ø ${fmtNum(x.moodWith, 1)} an Konsumtagen, Ø ${fmtNum(x.moodWithout, 1)} an Tagen ohne. Das heißt nicht, dass es dir guttut – bei Gewöhnung fühlen sich die Tage <i>ohne</i> schlechter an (Entzug, Craving).</div>` : ''}
+      ${x.planned ? `<div class="muted" style="margin-top:4px">Steht in deinem Plan: Bei ärztlicher Verordnung ist das erwartbar – nicht eigenständig steigern oder absetzen.</div>` : ''}
+      ${x.level >= 2 ? `<div class="muted help" style="margin-top:4px"><a href="#" onclick="showHelp();return false">Beratung & Hilfe</a></div>` : ''}</div>`;
+  }).join('');
+}
+
 // Duration until ~97 % is eliminated (5 half-lives).
 const inBloodHours = e => e && e.h ? e.h * 5 : null;
 function fmtDur(h) {
@@ -281,6 +325,8 @@ async function renderDay() {
   const dayEnd = isToday ? Date.now() : parseDay(k).getTime() + 86399000;
   const ix = issuesAmong([...logs.map(l => l.name), ...activeNamesAt(dayEnd), ...due.map(s => s.name)]);
   if (ix.length) html += `<h2>Wechselwirkungen <span class="muted">${ix.length}</span></h2>${issuesHtml(ix)}`;
+  const dep = dependenceAlerts(k);
+  if (dep.length) html += `<h2>Gewöhnung & Abhängigkeit</h2>${dependenceHtml(dep)}`;
 
   // Journal
   html += `<h2>Journal</h2><textarea id="note" data-day="${k}" placeholder="Wie war dein Tag? Training, Schlaf, Gedanken, Nebenwirkungen …" oninput="noteChanged(this.value)">${esc(day.note || '')}</textarea>`;
@@ -722,7 +768,8 @@ function moodSubstances(days) {
     html += `<div style="margin-top:16px"><b>Ø Stimmung mit / ohne</b></div>
       <table style="margin-top:6px"><tr><th>Substanz</th><th class="num">mit</th><th class="num">ohne</th><th class="num">Diff.</th></tr>
       ${cmp.map(r => { const d = r.w != null && r.wo != null ? r.w - r.wo : null;
-        return `<tr><td><span class="row" style="gap:6px"><i class="dot" style="background:${esc(r.c)}"></i>${esc(r.n)}</span><div class="muted">${r.nw} Tage</div></td><td class="num">${fmtNum(r.w, 1)}</td><td class="num">${fmtNum(r.wo, 1)}</td><td class="num">${fmtDiff(d)}</td></tr>`; }).join('')}</table>
+        return `<tr><td><span class="row" style="gap:6px"><i class="dot" style="background:${esc(r.c)}"></i>${esc(r.n)}${depRuleFor(lookup(r.n)) ? ' ⚠️' : ''}</span><div class="muted">${r.nw} Tage</div></td><td class="num">${fmtNum(r.w, 1)}</td><td class="num">${fmtNum(r.wo, 1)}</td><td class="num">${fmtDiff(d)}</td></tr>`; }).join('')}</table>
+      ${cmp.some(r => depRuleFor(lookup(r.n)) && r.w != null && r.wo != null && r.w > r.wo) ? `<div class="ix ix2" style="margin-top:10px"><b>⚠️ Vorsicht beim Deuten</b><div class="muted" style="color:var(--text)">Bei Substanzen mit Abhängigkeitspotenzial (⚠️) ist eine bessere Stimmung an Konsumtagen kein Beleg, dass sie dir guttun. Bei Gewöhnung fühlen sich die Tage <i>ohne</i> schlechter an – durch Entzug, Craving oder Crash. Achte darauf, ob deine Stimmung insgesamt über Wochen sinkt.</div></div>` : ''}
       <div class="muted" style="margin-top:8px">Zählt nur Tage mit Smiley. ${withAfter ? 'Mit Nachwirkung: zählt auch die Tage danach (einstellbar im Plan).' : 'Nur der Tag der Einnahme.'}</div>`;
   }
   return html + `</div>`;
@@ -919,6 +966,7 @@ function renderLexList() {
       ${e.aliases.length ? `<div class="muted">${esc(e.aliases.slice(0, 5).join(', '))}</div>` : ''}
       <div style="font-size:14px;margin-top:2px">Halbwertszeit: <b>${esc(e.range)}</b></div>
       <div style="font-size:14px">Im Blut: <b>ca. ${fmtDur(inBloodHours(e))}</b></div>
+      ${depRuleFor(e) ? `<div style="font-size:14px">Abhängigkeitspotenzial: <b>${esc(depRuleFor(e).potential)}</b></div>` : ''}
       ${e.note ? `<div class="muted">${esc(e.note)}</div>` : ''}</div>
     <button class="btn small" aria-label="Eintragen" onclick="editLog(null, null, {name: ${esc(JSON.stringify(e.name))}, category: '${e.cat}'})">＋</button></div>`).join('')}</div>`
     : `<div class="card empty">Nicht im Lexikon. Du kannst es trotzdem frei eintragen.</div>`;

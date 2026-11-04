@@ -215,3 +215,57 @@ window.INTERACTION_RULES = [
   [1, 'ashwagandha', ['thyroid', 'benzo', 'sedating'], 'Kann Schilddrüsenwerte erhöhen bzw. Müdigkeit verstärken.'],
   [2, 'cyp3a4inh', 'sirolimus', 'Rapamycin-Spiegel steigt stark.'],
 ];
+
+// ---------- Gewöhnung & Abhängigkeit ----------
+// Extra classes used only for dependence checks.
+(function () {
+  const C = window.SUBSTANCE_CLASSES;
+  const add = (names, cls) => names.forEach(n => { (C[n] ||= []).push(cls); });
+  add(['Nikotin'], 'nicotine');
+  add(['Koffein', 'Paraxanthin'], 'caffeine');
+  add(['Testosteron Enanthat', 'Testosteron Cypionat', 'Testosteron Propionat', 'Testosteron Undecanoat', 'Sustanon 250',
+    'Testosteron Suspension', 'Nandrolon Decanoat', 'Nandrolon Phenylpropionat', 'Trenbolon Acetat', 'Trenbolon Enanthat',
+    'Trenbolon Hexahydrobenzylcarbonat', 'Boldenon Undecylenat', 'Drostanolon Propionat', 'Drostanolon Enanthat',
+    'Methenolon Enanthat', 'Methenolon Acetat', 'Oxandrolon', 'Methandienon', 'Oxymetholon', 'Stanozolol',
+    'Chlordehydromethyltestosteron', 'Fluoxymesteron', 'Mesterolon', 'Methyltestosteron', 'Methasteron'], 'aas');
+})();
+
+// Usage patterns that commonly lead to tolerance or dependence. First matching rule per substance wins.
+// window: days looked back; min: days with use in that window (or weeks with use when `weeks` is set).
+// level: 3 = hoch, 2 = deutlich, 1 = Hinweis.
+window.DEPENDENCE_RULES = [
+  { cls: 'ghb', window: 14, min: 4, level: 3, potential: 'sehr hoch (körperlich)',
+    text: 'Bei häufigem GHB/GBL-Konsum entsteht schnell eine starke körperliche Abhängigkeit. Der Entzug kann lebensgefährlich sein (Krampfanfälle, Delir) – nur ärztlich begleitet absetzen.' },
+  { cls: 'opioid', window: 14, min: 5, level: 3, potential: 'sehr hoch (körperlich & psychisch)',
+    text: 'Körperliche Abhängigkeit kann sich schon nach 1–2 Wochen regelmäßiger Einnahme entwickeln. Entzug: Unruhe, Schwitzen, Schmerzen, Durchfall, Schlaflosigkeit. Die Toleranz sinkt in Pausen schnell – danach ist die gewohnte Menge gefährlich.' },
+  { cls: 'benzo', window: 28, min: 10, level: 3, potential: 'hoch (körperlich & psychisch)',
+    text: 'Bei Einnahme über mehr als 2–4 Wochen droht Abhängigkeit. Nicht abrupt absetzen – der Entzug kann Krampfanfälle auslösen. Ärztlich ausschleichen.' },
+  { cls: 'zdrug', window: 28, min: 10, level: 3, potential: 'hoch (körperlich & psychisch)',
+    text: 'Schlafmittel wie Zolpidem/Zopiclon machen bei regelmäßiger Einnahme über mehr als 2–4 Wochen abhängig. Absetzen führt oft zu schlechterem Schlaf als vorher (Rebound) – ärztlich ausschleichen.' },
+  { cls: 'barb', window: 28, min: 7, level: 3, potential: 'sehr hoch (körperlich)',
+    text: 'Starke Gewöhnung bei regelmäßiger Einnahme; der Entzug kann lebensgefährlich sein. Nur ärztlich begleitet absetzen.' },
+  { cls: 'gabab', window: 14, min: 4, level: 3, potential: 'hoch (körperlich)',
+    text: 'Phenibut/Baclofen: Toleranz entwickelt sich sehr schnell, der Entzug kann schwer sein (Angst, Schlaflosigkeit, Krampfanfälle).' },
+  { cls: 'gabapentinoid', window: 28, min: 10, level: 2, potential: 'mittel bis hoch',
+    text: 'Pregabalin/Gabapentin: Gewöhnung und Entzug (Unruhe, Schlafstörungen, Schwitzen, selten Krampfanfälle) bei regelmäßigem Gebrauch. Nicht abrupt absetzen.' },
+  { cls: 'cocaine', window: 14, min: 4, level: 3, potential: 'hoch (psychisch)',
+    text: 'Häufiger Kokainkonsum führt schnell zu psychischer Abhängigkeit (Craving). Das Hoch täuscht: Danach folgen Crash, Erschöpfung, gedrückte Stimmung und Schlafprobleme.' },
+  { cls: 'mdma', window: 30, min: 2, level: 2, potential: 'mittel (psychisch), Wirkverlust',
+    text: 'MDMA öfter als etwa alle 4–6 Wochen: Der Serotoninspeicher erholt sich nicht. Typisch sind Tiefs 2–4 Tage danach, die Wirkung lässt nach.' },
+  { cls: 'stimulant', window: 14, min: 4, level: 2, potential: 'hoch (psychisch)',
+    text: 'Stimulanzien regelmäßig: schnelle Toleranz und psychische Abhängigkeit. Auf Konsumtage folgen Crash, Erschöpfung und gedrückte Stimmung – das Hoch täuscht.' },
+  { cls: 'dissociative', window: 30, min: 8, level: 2, potential: 'mittel (psychisch)',
+    text: 'Ketamin & Co. regelmäßig: psychische Abhängigkeit möglich, schnelle Toleranz. Blase und Nieren können dauerhaft Schaden nehmen (Ketamin-Blase).' },
+  { cls: 'dxm', window: 30, min: 6, level: 2, potential: 'mittel (psychisch)',
+    text: 'Häufiger DXM-Gebrauch: Toleranz, psychische Abhängigkeit, Gedächtnis- und Stimmungsprobleme.' },
+  { cls: 'alcohol', window: 30, min: 15, level: 2, potential: 'hoch (körperlich & psychisch)',
+    text: 'Alkohol an mehr als der Hälfte der Tage: hohes Risiko für Gewöhnung und Abhängigkeit. Schlaf, Leber und Stimmung an den Folgetagen leiden. Bei starker Gewöhnung nicht abrupt aufhören (Entzugskrampf) – ärztlich begleiten.' },
+  { cls: 'cannabis', window: 30, min: 20, level: 2, potential: 'mittel (psychisch)',
+    text: 'Fast täglicher Cannabiskonsum: Etwa jede zehnte Person wird abhängig, bei täglichem Konsum deutlich mehr. Entzug: Schlafprobleme, Reizbarkeit, Unruhe, wenig Appetit – meist 1–2 Wochen.' },
+  { cls: 'nicotine', window: 14, min: 10, level: 1, potential: 'sehr hoch',
+    text: 'Täglicher Nikotinkonsum macht schnell abhängig. Ohne Nikotin: Reizbarkeit, Unruhe, Konzentrationsprobleme.' },
+  { cls: 'caffeine', window: 14, min: 12, level: 1, potential: 'gering (Gewöhnung)',
+    text: 'Tägliches Koffein führt zu Gewöhnung: Ohne Koffein kommen Kopfschmerzen, Müdigkeit und Gereiztheit für 2–9 Tage.' },
+  { cls: 'aas', window: 84, min: 8, weeks: true, level: 1, potential: 'Hormonachse, psychisch möglich',
+    text: 'Testosteron/Anabolika über 8+ Wochen: Die körpereigene Testosteronproduktion wird unterdrückt. Nach dem Absetzen sind Stimmungstiefs, Antriebs- und Libidoverlust häufig – ärztlich begleiten (Blutwerte).' },
+];
