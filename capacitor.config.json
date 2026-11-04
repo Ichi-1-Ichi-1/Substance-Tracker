@@ -1,6 +1,6 @@
 {
-  "appId": "de.halbwert.app",
-  "appName": "Halbwert",
+  "appId": "app.substancetracker",
+  "appName": "Substance Tracker",
   "webDir": "www",
   "backgroundColor": "#0b0f17",
   "ios": {

@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>de</string>
 	<key>CFBundleDisplayName</key>
-	<string>Halbwert</string>
+	<string>Substance Tracker</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,11 +27,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Halbwert nutzt die Kamera nur, wenn du ein Foto (z. B. eines Befunds) an einen Tag anhängst. Fotos bleiben auf deinem Gerät.</string>
+	<string>Substance Tracker nutzt die Kamera nur, wenn du ein Foto (z. B. eines Befunds) an einen Tag anhängst. Fotos bleiben auf deinem Gerät.</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Halbwert nutzt Face ID, damit nur du dein Tagebuch öffnen kannst.</string>
+	<string>Substance Tracker nutzt Face ID, damit nur du dein Tagebuch öffnen kannst.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Halbwert greift nur auf Fotos zu, die du selbst auswählst, um sie an einen Tag anzuhängen. Fotos bleiben auf deinem Gerät.</string>
+	<string>Substance Tracker greift nur auf Fotos zu, die du selbst auswählst, um sie an einen Tag anzuhängen. Fotos bleiben auf deinem Gerät.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

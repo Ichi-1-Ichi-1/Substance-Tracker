@@ -1,6 +1,6 @@
-# Halbwert
+# Substance Tracker
 
-Private harm-reduction substance journal. App Store listing, positioning and review notes: see [APPSTORE.md](APPSTORE.md). Privacy policy: `privacy.html`, support page: `support.html`.
+Private self-tracking journal for supplements, medications, peptides and more. App Store listing, positioning and review notes: see [APPSTORE.md](APPSTORE.md). Privacy policy: `privacy.html`, support page: `support.html`.
 
 Offline-first web app (PWA) for iPhone: log a substance plan, a daily journal, mood and nutrition.
 

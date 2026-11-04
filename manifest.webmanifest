@@ -1,6 +1,6 @@
 {
-  "name": "Halbwert – Substanz-Tagebuch",
-  "short_name": "Halbwert",
+  "name": "Substance Tracker",
+  "short_name": "Substances",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -24,7 +24,7 @@
       "type": "image/svg+xml"
     }
   ],
-  "description": "Privates Substanz-Tagebuch für Harm Reduction: Einnahmen, Stimmung, Halbwertszeiten und Wechselwirkungs-Hinweise. Alle Daten bleiben auf deinem Gerät.",
+  "description": "Privates Tracking für Supplements, Medikamente, Peptide und mehr: Plan, Stimmung, Halbwertszeiten und Wechselwirkungs-Hinweise. Alle Daten bleiben auf deinem Gerät.",
   "categories": [
     "health",
     "medical",

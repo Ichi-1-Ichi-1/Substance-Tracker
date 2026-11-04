@@ -971,7 +971,7 @@ function scheduleReminders() {
         at.setHours(hh, mm, 0, 0);
         if (at.getTime() <= now) continue;
         const open = db.substances.filter(s => isDue(s, k) && logsOn(k).filter(l => l.subId === s.id).length < (s.timesPerDay || 1)).length;
-        if (open) list.push({ id: 1000 + i, at, title: 'Halbwert', body: open === 1 ? 'Für heute ist 1 Eintrag geplant.' : `Für heute sind ${open} Einträge geplant.` });
+        if (open) list.push({ id: 1000 + i, at, title: 'Substance Tracker', body: open === 1 ? 'Für heute ist 1 Eintrag geplant.' : `Für heute sind ${open} Einträge geplant.` });
       }
     }
     try { await window.Native.setReminders(list); } catch (e) {}
@@ -994,7 +994,7 @@ function lockScreen(show) {
   if (el) return;
   el = document.createElement('div');
   el.id = 'lock';
-  el.innerHTML = `<img src="icon-180.png" alt="" width="72" height="72" style="border-radius:16px"><div class="name" style="font-size:20px">Halbwert ist gesperrt</div>
+  el.innerHTML = `<img src="icon-180.png" alt="" width="72" height="72" style="border-radius:16px"><div class="name" style="font-size:20px">Substance Tracker ist gesperrt</div>
     <button class="btn primary" onclick="tryUnlock()">Entsperren</button>`;
   document.body.appendChild(el);
 }
@@ -1026,16 +1026,17 @@ const ONB_KEY = 'halbwert-onboarded-v1';
 function showOnboarding() {
   const dlg = $('#dlg');
   dlg.onclose = null; dlg.returnValue = '';
-  dlg.innerHTML = `<div class="onb"><h3>Willkommen bei Halbwert</h3>
-    <div class="muted">Dein privates Substanz-Tagebuch für mehr Überblick und Sicherheit.</div>
+  dlg.innerHTML = `<div class="onb"><h3>Willkommen bei Substance Tracker</h3>
+    <div class="muted">Dein privates Labor-Tagebuch: Was du deinem Körper zuführst – und was es mit dir macht.</div>
     <ul>
-      <li><span>📋</span><div><b>Dokumentieren statt raten.</b> Medikamente, Hormontherapie, Supplements und andere Substanzen festhalten – mit Stimmung und Journal.</div></li>
-      <li><span>🛡️</span><div><b>Harm Reduction.</b> Halbwertszeiten und Hinweise auf gefährliche Wechselwirkungen helfen, Risiken zu erkennen und zu senken.</div></li>
+      <li><span>🧬</span><div><b>Alles an einem Ort.</b> Supplements, Vitamine, Nootropics, Peptide, Hormone, Medikamente, Koffein, Alkohol und mehr – mit Dosis, Plan und einem Tipp zum Abhaken.</div></li>
+      <li><span>📈</span><div><b>Muster erkennen.</b> Stimmung, Journal, Ernährung und Trends zeigen, was dir wirklich etwas bringt.</div></li>
+      <li><span>⏱️</span><div><b>Wissen, was wirkt.</b> Halbwertszeiten, Spiegelkurven und Hinweise auf riskante Wechselwirkungen.</div></li>
       <li><span>🔒</span><div><b>Privat.</b> Kein Konto, keine Cloud, kein Tracking. Alles bleibt auf diesem Gerät.</div></li>
-      <li><span>🩺</span><div><b>Kein Ersatz für ärztlichen Rat.</b> Die Angaben sind Richtwerte. Besprich Medikamente und Risiken mit Ärztin oder Arzt. Im Notfall: 112.</div></li>
+      <li><span>🩺</span><div><b>Kein Ersatz für ärztlichen Rat.</b> Alle Angaben sind Richtwerte. Im Notfall: 112.</div></li>
     </ul>
     <label style="display:flex;gap:8px;align-items:flex-start;color:var(--text);margin:0"><input type="checkbox" id="onbAge" style="width:auto;margin-top:3px">
-      Ich bin mindestens 18 Jahre alt und habe verstanden, dass Halbwert keine medizinische Beratung ersetzt.</label>
+      Ich bin mindestens 18 Jahre alt und habe verstanden, dass die App keine medizinische Beratung ersetzt.</label>
     <div class="actions"><button class="btn primary" id="onbOk" disabled>Los geht's</button></div></div>`;
   dlg.querySelector('#onbAge').onchange = e => { dlg.querySelector('#onbOk').disabled = !e.target.checked; };
   dlg.querySelector('#onbOk').onclick = () => { try { localStorage.setItem(ONB_KEY, new Date().toISOString()); } catch (e) {} dlg.close(); };
@@ -1085,7 +1086,7 @@ function renderMore() {
     </div>`; })() : ''}
     <h2>Hilfe & Infos</h2><div class="card">
       <div class="entry row"><div class="grow"><div class="name">Hilfe & Notfall</div><div class="muted">Notrufnummern, Giftnotruf, Beratung</div></div><button class="btn small" onclick="showHelp()">Öffnen</button></div>
-      <div class="entry row"><div class="grow"><div class="name">Über Halbwert</div><div class="muted">Zweck, Datenquellen, Grenzen</div></div><a class="btn small" href="support.html">Öffnen</a></div>
+      <div class="entry row"><div class="grow"><div class="name">Über Substance Tracker</div><div class="muted">Zweck, Datenquellen, Grenzen</div></div><a class="btn small" href="support.html">Öffnen</a></div>
       <div class="entry row"><div class="grow"><div class="name">Datenschutz</div><div class="muted">Keine Datenerhebung – alles bleibt lokal</div></div><a class="btn small" href="privacy.html">Öffnen</a></div>
       <div class="entry row"><div class="grow"><div class="name">Einführung erneut anzeigen</div></div><button class="btn small" onclick="showOnboarding()">Anzeigen</button></div>
     </div>

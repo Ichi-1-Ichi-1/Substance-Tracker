@@ -34,7 +34,7 @@ window.Native = {
 
   // Resolves true when the user passed Face ID / Touch ID / device passcode.
   async unlock(reason) {
-    try { await NativeBiometric.verifyIdentity({ reason, title: 'Halbwert entsperren', useFallback: true }); return true; }
+    try { await NativeBiometric.verifyIdentity({ reason, title: 'Substance Tracker entsperren', useFallback: true }); return true; }
     catch (e) { return false; }
   },
 };

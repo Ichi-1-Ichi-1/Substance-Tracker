@@ -37,7 +37,7 @@ window.SUBSTANCE_DB.push(
   ['Bromazolam', 'rec', null, 'unklar', [], 'Designer-Benzo'],
   ['Flubromazolam', 'rec', null, 'unklar (lang)', [], 'Designer-Benzo, sehr potent'],
   ['Clonazolam', 'rec', null, 'unklar', [], 'Designer-Benzo, sehr potent'],
-  ['Spice', 'rec', null, 'unklar', ['Synthetische Cannabinoide', 'K2'], 'unberechenbar stark'],
+  ['Spice', 'rec', null, 'unklar', ['Synthetische Cannabinoide'], 'unberechenbar stark'],
   ['Buspiron', 'med', 2.5, '2–3 Std.', ['Bespar'], ''],
   ['Pseudoephedrin', 'med', 6, '5–8 Std.', ['Aspirin Complex', 'Wick DayMed'], ''],
 );
@@ -71,7 +71,7 @@ window.SUBSTANCE_CLASSES = {
   'Amitriptylin': ['tca', 'sedating'], 'Clomipramin': ['tca'], 'Doxepin': ['tca', 'sedating'], 'Nortriptylin': ['tca'],
   'Opipramol': ['tca', 'sedating'], 'Bupropion': ['cyp2d6inh', 'seizure'], 'Buspiron': ['serotonergic'],
   'Moclobemid': ['maoi'], 'Tranylcypromin': ['maoi'], 'Phenelzin': ['maoi'], 'Selegilin': ['maoi'], 'Linezolid': ['maoi'],
-  'Ayahuasca': ['maoi', 'psychedelic'], 'Johanniskraut': ['serotonergic'], 'Sumatriptan': ['serotonergic'], '5-HTP': ['serotonergic'],
+  'Ayahuasca': ['maoi', 'psychedelic'], 'Sumatriptan': ['serotonergic'], '5-HTP': ['serotonergic'],
   'Lithium': ['lithium'],
   // Stimulanzien
   'Kokain': ['cocaine', 'stimulant'], 'Amphetamin': ['stimulant'], 'Methamphetamin': ['stimulant'], 'Dexamfetamin': ['stimulant'],
@@ -80,7 +80,7 @@ window.SUBSTANCE_CLASSES = {
   'MDA': ['mdma', 'stimulant', 'serotonergic'], 'Ephedrin': ['stimulant'], 'Pseudoephedrin': ['stimulant'],
   'Koffein': ['stimulant-mild'], 'Yohimbin': ['stimulant-mild'], 'Synephrin': ['stimulant-mild'],
   'Modafinil': ['stimulant-mild'], 'Armodafinil': ['stimulant-mild'],
-  'Clenbuterol': ['beta2'], 'Liothyronin': ['thyroid'], 'Levothyroxin': ['thyroid'],
+  'Clenbuterol': ['beta2'], 'Liothyronin': ['thyroid'], 'Levothyroxin': ['thyroid', 'chelate'],
   // Psychedelika / Cannabis
   'LSD': ['psychedelic'], 'Psilocybin': ['psychedelic'], 'DMT': ['psychedelic'], 'Mescalin': ['psychedelic'], '2C-B': ['psychedelic'],
   'Cannabis (THC)': ['cannabis'], 'Spice': ['cannabis'],
@@ -94,7 +94,7 @@ window.SUBSTANCE_CLASSES = {
   // Leber / Stoffwechsel
   'Oxandrolon': ['hepatotox'], 'Methandienon': ['hepatotox'], 'Oxymetholon': ['hepatotox'], 'Stanozolol': ['hepatotox'],
   'Chlordehydromethyltestosteron': ['hepatotox'], 'Fluoxymesteron': ['hepatotox'], 'Methyltestosteron': ['hepatotox'],
-  'Methasteron': ['hepatotox'], 'Paracetamol': ['paracetamol'], 'Isotretinoin': ['isotretinoin'], 'Doxycyclin': ['tetracycline'],
+  'Methasteron': ['hepatotox'], 'Paracetamol': ['paracetamol'], 'Isotretinoin': ['isotretinoin'], 'Doxycyclin': ['tetracycline', 'chelate'],
   'Metronidazol': ['metronidazole'], 'Metformin': ['metformin'],
   'Insulin (kurzwirksam)': ['insulin'], 'Insulin glargin': ['insulin'],
   'Retatrutide': ['glp1'], 'Semaglutid': ['glp1'], 'Tirzepatid': ['glp1'], 'Liraglutid': ['glp1'], 'Dulaglutid': ['glp1'], 'Exenatid': ['glp1'],
@@ -102,12 +102,23 @@ window.SUBSTANCE_CLASSES = {
   'Naltrexon': ['naltrexone'], 'Valproinsäure': ['valproate'], 'Lamotrigin': ['lamotrigine'],
   // Enzymhemmer / QT
   'Clarithromycin': ['cyp3a4inh', 'qt'], 'Ritonavir': ['cyp3a4inh', 'ritonavir'], 'Itraconazol': ['cyp3a4inh'], 'Fluconazol': ['cyp3a4inh', 'qt'],
-  'Azithromycin': ['qt'], 'Ciprofloxacin': ['qt', 'cyp1a2inh'], 'Ondansetron': ['qt'], 'Domperidon': ['qt'],
+  'Azithromycin': ['qt'], 'Ciprofloxacin': ['qt', 'cyp1a2inh', 'chelate'], 'Ondansetron': ['qt'], 'Domperidon': ['qt'],
+  // Supplements
+  'L-Tryptophan': ['serotonergic'], 'SAMe': ['serotonergic'], 'Kanna': ['serotonergic'],
+  'Magnesium': ['cation'], 'Zink': ['cation'], 'Eisen': ['cation'], 'Calcium': ['cation'],
+  'Kalium': ['potassium'], 'Lithiumorotat': ['lithium'],
+  'Vitamin K1': ['vitk'], 'Vitamin K2 (MK-7)': ['vitk'], 'Vitamin K2 (MK-4)': ['vitk'], 'Vitamin A': ['vitamina'],
+  'Ginkgo biloba': ['antiplatelet-mild'], 'Omega-3': ['antiplatelet-mild'], 'Curcumin': ['antiplatelet-mild'], 'Vitamin E': ['antiplatelet-mild'],
+  'Berberin': ['berberine'], 'Kava': ['sedating', 'hepatotox'], 'Ashwagandha': ['ashwagandha'], 'Coenzym Q10': ['coq10'],
+  'Paraxanthin': ['stimulant-mild'], 'Theacrin': ['stimulant-mild'], 'Grapefruitsaft': ['cyp3a4inh'], 'Rapamycin': ['sirolimus'],
+  'Johanniskraut': ['serotonergic', 'inducer'],
+  'Phenprocoumon': ['vka', 'anticoag'], 'Warfarin': ['vka', 'anticoag'],
 };
 
 // How long an entry counts as active for interaction checks, where 5 half-lives would be misleading.
 window.INTERACTION_WINDOW_H = {
   'Tranylcypromin': 336, 'Phenelzin': 336, 'Selegilin': 336, 'Clopidogrel': 168, 'Acetylsalicylsäure': 168, 'Alkohol': 12,
+  'Grapefruitsaft': 72, 'Magnesium': 4, 'Zink': 4, 'Eisen': 4, 'Calcium': 4,
 };
 
 // [severity 3 = gefährlich, 2 = riskant, 1 = beachten, class A, class(es) B, text]
@@ -191,4 +202,16 @@ window.INTERACTION_RULES = [
   [2, 'buprenorphine', 'opioid', 'Kann Entzug auslösen; mit Dämpfern Atemdepression.'],
   [2, 'insulin', ['glp1', 'alcohol'], 'Unterzuckerung möglich (bei Alkohol verzögert).'],
   [2, 'valproate', 'lamotrigine', 'Lamotrigin-Spiegel verdoppelt sich – schwere Hautreaktionen möglich.'],
+
+  // Supplements
+  [1, 'cation', 'chelate', 'Mineralien binden das Medikament im Darm – Wirkung sinkt. Mit einigen Stunden Abstand einnehmen.'],
+  [2, 'potassium', ['diuretick', 'acearb'], 'Zu viel Kalium im Blut (Herzrhythmus).'],
+  [2, 'vitk', 'vka', 'Vitamin K schwächt Marcumar/Warfarin ab – der INR-Wert schwankt.'],
+  [1, 'coq10', 'vka', 'Kann die Wirkung von Marcumar/Warfarin abschwächen.'],
+  [2, 'inducer', ['vka', 'anticoag', 'sirolimus', 'statin3a4', 'tamoxifen'], 'Johanniskraut senkt den Spiegel vieler Medikamente – die Wirkung kann ausbleiben.'],
+  [1, 'antiplatelet-mild', ['anticoag', 'antiplatelet'], 'Kann das Blutungsrisiko leicht erhöhen.'],
+  [2, 'vitamina', 'isotretinoin', 'Zu viel Vitamin A – Kopfschmerzen, Leberbelastung möglich.'],
+  [1, 'berberine', ['metformin', 'insulin', 'glp1'], 'Blutzucker kann stärker sinken.'],
+  [1, 'ashwagandha', ['thyroid', 'benzo', 'sedating'], 'Kann Schilddrüsenwerte erhöhen bzw. Müdigkeit verstärken.'],
+  [2, 'cyp3a4inh', 'sirolimus', 'Rapamycin-Spiegel steigt stark.'],
 ];
