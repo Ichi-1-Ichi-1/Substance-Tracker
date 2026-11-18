@@ -231,12 +231,19 @@ function setActiveDays(name, v) {
   save();
 }
 // Substances not taken on day k but still within their after-effect window.
-function inSystem(k) {
-  const last = {};
-  for (const l of db.logs) { const d = l.time.slice(0, 10); if (d <= k && (!last[l.name] || d > last[l.name].d)) last[l.name] = { d, l }; }
-  return Object.entries(last).map(([name, { d, l }]) => ({ name, d, l, diff: daysBetween(d, k), ad: activeDays(name) }))
-    .filter(x => x.diff >= 1 && x.diff <= x.ad).sort((a, b) => (a.ad - a.diff) - (b.ad - b.diff)).reverse();
+// Hours a dose counts as "in system": own setting (days) or ~5 half-lives from the lexicon.
+function activeHours(name) {
+  const own = (db.settings.activeDays || {})[name];
+  return own != null ? own * 24 : inBloodHours(lookup(name)) || 0;
 }
+// Substances whose last dose before time `at` is still within its window, with hours remaining.
+function inSystem(at) {
+  const last = {};
+  for (const l of db.logs) { const t = new Date(l.time).getTime(); if (t <= at && (!last[l.name] || t > last[l.name].t)) last[l.name] = { t, l }; }
+  return Object.entries(last).map(([name, { t, l }]) => { const win = activeHours(name); return { name, l, d: l.time.slice(0, 10), win, left: win - (at - t) / 3.6e6 }; })
+    .filter(x => x.win > 0 && x.left > 0).sort((a, b) => b.left - a.left);
+}
+const fmtLeft = h => h >= 36 ? `noch ${Math.round(h / 24)} Tage` : h >= 20 ? 'noch ~1 Tag' : `noch ${Math.max(1, Math.round(h))} Std.`;
 
 function doseText(s, amount) {
   let t = `${fmtNum(amount)} ${s.unit}`;
@@ -272,6 +279,50 @@ function nextDue(s, from) {
   for (let i = 0; i < 400; i++) { const k = addDays(from, i); if (isDue(s, k)) return k; }
   return null;
 }
+// A planned item counts as handled when it was logged often enough or marked as not taken.
+const isSkipped = (s, d) => (peekDay(d).skipped || []).includes(s.id);
+const isHandled = (s, d) => isSkipped(s, d) || logsOn(d).filter(l => l.subId === s.id).length >= (s.timesPerDay || 1);
+function openItems(k, days = 7) {
+  const open = [];
+  for (let i = 1; i <= days; i++) { const d = addDays(k, -i); for (const s of db.substances) if (isDue(s, d) && !isHandled(s, d)) open.push({ s, d }); }
+  return open;
+}
+function setSkipped(subId, d, on) {
+  const day = getDay(d), list = new Set(day.skipped || []);
+  on ? list.add(subId) : list.delete(subId);
+  day.skipped = [...list];
+  if (!day.skipped.length) delete day.skipped;
+}
+function skipDialog(subId, d) {
+  const s = subById(subId), dlg = $('#dlg');
+  const openOfSub = openItems(todayKey()).filter(o => o.s.id === subId);
+  dlg.onclose = null; dlg.returnValue = '';
+  dlg.innerHTML = `<h3>${esc(s.name)} nicht genommen</h3><div class="muted">${fmtDay(d)} · ${doseText(s, s.dose)}</div>
+    <div class="actions" style="flex-direction:column;align-items:stretch">
+      <button class="btn primary" id="sk1">Nur an diesem Tag auslassen</button>
+      ${openOfSub.length > 1 ? `<button class="btn" id="skAll">Alle ${openOfSub.length} offenen Tage auslassen</button>` : ''}
+      <button class="btn" id="skStop">Ab jetzt nicht mehr nehmen (aus dem Plan)</button>
+      <button class="btn" onclick="$('#dlg').close()">Abbrechen</button></div>`;
+  const done = msg => { save(); dlg.close(); render(); toast(msg); };
+  dlg.querySelector('#sk1').onclick = () => { setSkipped(subId, d, true); done('Ausgelassen'); };
+  const all = dlg.querySelector('#skAll');
+  if (all) all.onclick = () => { openOfSub.forEach(o => setSkipped(subId, o.d, true)); done('Ausgelassen'); };
+  dlg.querySelector('#skStop').onclick = () => {
+    if (!confirm(`„${s.name}“ ab heute nicht mehr einplanen? Bisherige Einträge bleiben erhalten.`)) return;
+    openOfSub.forEach(o => setSkipped(subId, o.d, true));
+    s.end = addDays(todayKey(), -1);
+    if (s.start && s.start > s.end) s.active = false;
+    done('Aus dem Plan genommen');
+  };
+  dlg.showModal();
+}
+function skipAllOpen() {
+  const open = openItems(todayKey());
+  if (!open.length || !confirm(`${open.length} offene Einträge als „nicht genommen“ markieren?`)) return;
+  open.forEach(o => setSkipped(o.s.id, o.d, true));
+  save(); render(); toast('Ausgeblendet');
+}
+
 function weeklyDose(s) {
   const t = s.timesPerDay || 1;
   if (s.mode === 'asneeded' || s.mode === 'dates') return null;
@@ -335,11 +386,12 @@ async function renderDay() {
   if (due.length) {
     html += `<h2>Plan</h2><div class="card">`;
     for (const s of due) {
-      const done = logs.filter(l => l.subId === s.id).length, need = s.timesPerDay || 1;
-      html += `<div class="entry row"><div class="dot" style="background:${esc(s.color)}"></div>
+      const done = logs.filter(l => l.subId === s.id).length, need = s.timesPerDay || 1, skipped = isSkipped(s, k);
+      html += `<div class="entry row" style="${skipped ? 'opacity:.55' : ''}"><div class="dot" style="background:${esc(s.color)}"></div>
         <div class="grow"><div class="name">${esc(s.name)}</div><div class="muted">${doseText(s, s.dose)} · ${FORMS[s.form]}</div></div>
-        ${done >= need ? `<span class="done">✓${need > 1 ? ` ${done}/${need}` : ' erledigt'}</span>`
-          : `<button class="btn primary small" onclick="quickLog('${s.id}')">${need > 1 ? `${done}/${need} · ` : ''}Erledigt</button>`}</div>`;
+        ${skipped ? `<span class="muted">ausgelassen</span><button class="btn small" aria-label="Rückgängig" onclick="setSkipped('${s.id}','${k}',false);save();renderDay()">↺</button>`
+          : done >= need ? `<span class="done">✓${need > 1 ? ` ${done}/${need}` : ' erledigt'}</span>`
+          : `<button class="btn primary small" onclick="quickLog('${s.id}')">${need > 1 ? `${done}/${need} · ` : ''}Erledigt</button><button class="btn small" aria-label="Nicht genommen" onclick="skipDialog('${s.id}','${k}')">✕</button>`}</div>`;
     }
     html += `</div>`;
   } else if (!db.substances.length) {
@@ -347,27 +399,23 @@ async function renderDay() {
   }
 
   // Still in the system
-  const sys = inSystem(k).filter(x => !logs.some(l => l.name === x.name) && !due.some(s => s.name === x.name));
   const at = isToday ? Date.now() : parseDay(k).getTime() + 86399000;
+  const sys = inSystem(at).filter(x => !logs.some(l => l.name === x.name) && !due.some(s => s.name === x.name));
   if (sys.length) html += `<h2>Im System <span class="muted">wirkt noch nach</span></h2><div class="card">` + sys.map(x => {
     const lv = levelAt(x.name, at);
     return `<div class="entry" onclick="showLevel(${esc(JSON.stringify(x.name))})" style="cursor:pointer"><div class="row"><div class="dot" style="background:${esc(colorOf(x.l))}"></div><div class="grow name">${esc(x.name)}</div>
-      <span class="muted">noch ${x.ad - x.diff + 1} ${x.ad - x.diff + 1 === 1 ? 'Tag' : 'Tage'} ›</span></div>
+      <span class="muted">${fmtLeft(x.left)} ›</span></div>
       <div class="muted" style="margin-left:22px">zuletzt ${fmtDay(x.d)}${x.l.amount != null ? ' · ' + fmtNum(x.l.amount) + ' ' + esc(x.l.unit) : ''}${lv ? ` · ≈ ${fmtNum(lv.v, lv.v < 10 ? 1 : 0)} ${esc(lv.unit)} im Körper` : ''}</div>
-      <div class="bar-bg" style="margin-left:22px"><i style="width:${Math.round((x.ad - x.diff + 1) / (x.ad + 1) * 100)}%;background:${esc(colorOf(x.l))}"></i></div></div>`;
+      <div class="bar-bg" style="margin-left:22px"><i style="width:${Math.round(x.left / x.win * 100)}%;background:${esc(colorOf(x.l))}"></i></div></div>`;
   }).join('') + `</div>`;
 
   // Planned but not ticked off in the last 7 days
   if (isToday) {
-    const open = [];
-    for (let i = 1; i <= 7; i++) {
-      const d = addDays(k, -i);
-      for (const s of db.substances) if (isDue(s, d) && logsOn(d).filter(l => l.subId === s.id).length < (s.timesPerDay || 1)) open.push({ s, d });
-    }
-    if (open.length) html += `<h2>Offen <span class="muted">letzte 7 Tage</span></h2><div class="card">` + open.map(({ s, d }) =>
+    const open = openItems(k);
+    if (open.length) html += `<h2><span class="grow">Offen <span class="muted">letzte 7 Tage</span></span><button class="btn small" onclick="skipAllOpen()">Alle ausblenden</button></h2><div class="card">` + open.map(({ s, d }) =>
       `<div class="entry row"><div class="dot" style="background:${esc(s.color)}"></div><div class="grow"><div class="name">${esc(s.name)}</div><div class="muted">${fmtDay(d)} · ${doseText(s, s.dose)}</div></div>
         <button class="btn small" onclick="curDay='${d}';quickLog('${s.id}');curDay=todayKey();renderDay()">Erledigt</button>
-        <button class="btn small" onclick="openDay('${d}')">›</button></div>`).join('') + `</div>`;
+        <button class="btn small" aria-label="Nicht genommen" onclick="skipDialog('${s.id}','${d}')">✕</button></div>`).join('') + `</div>`;
   }
 
   // Logged
@@ -617,7 +665,70 @@ async function viewFile(id) {
 }
 
 // ---------- History (calendar + search) ----------
+// ---------- List view (notes format) ----------
+let histMode = prefGetSafe('st-hist-mode', 'cal');
+let listOpt = prefGetSafe('st-list-opt', { range: 30, plan: true, mood: true, notes: true, newest: false });
+function prefGetSafe(k, d) { try { const v = localStorage.getItem(k); if (v == null) return d; const p = JSON.parse(v); return d && typeof d === 'object' ? { ...d, ...p } : p; } catch (e) { return d; } }
+function prefSetSafe(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+// One line per day, e.g. "18.11 = Testosteron Enanthat 60 mg + Tamoxifen 10 mg | Rec: Weed | Mood: 🙂 4 | Note: …"
+function listText(o = listOpt) {
+  const today = todayKey();
+  const logDays = db.logs.map(l => l.time.slice(0, 10));
+  const first = o.range ? addDays(today, -(o.range - 1)) : (logDays.concat(Object.keys(db.days)).sort()[0] || today);
+  const last = o.plan ? addDays(today, 14) : today;
+  const lines = [];
+  let month = '';
+  const days = [];
+  for (let k = first; k <= last; k = addDays(k, 1)) days.push(k);
+  if (o.newest) days.reverse();
+  for (const k of days) {
+    const logs = logsOn(k), day = peekDay(k), future = k > today;
+    const agg = {};
+    for (const l of logs) {
+      const key = l.name + '|' + (l.amount != null ? l.unit : '');
+      const a = (agg[key] ||= { name: l.name, unit: l.unit, sum: 0, n: 0, amt: false, rec: l.category === 'rec' });
+      a.n++; if (l.amount != null) { a.sum += l.amount; a.amt = true; }
+    }
+    const fmt = a => `${a.name}${a.amt ? ' ' + fmtNum(a.sum) + ' ' + a.unit : ''}${!a.amt && a.n > 1 ? ` (${a.n}×)` : ''}`;
+    const main = Object.values(agg).filter(a => !a.rec).map(fmt), rec = Object.values(agg).filter(a => a.rec).map(fmt);
+    const planned = db.substances.filter(s => isDue(s, k) && !isHandled(s, k)).map(s => `${s.name} ${fmtNum(s.dose)} ${s.unit}`);
+    const skipped = db.substances.filter(s => isDue(s, k) && isSkipped(s, k)).map(s => s.name);
+    const parts = [];
+    if (main.length) parts.push(main.join(' + '));
+    if (o.plan && planned.length) parts.push((future ? '' : 'offen: ') + planned.join(' + ') + (future ? ' (geplant)' : ''));
+    if (!parts.length) parts.push('–');
+    if (rec.length) parts.push('Rec: ' + rec.join(' + '));
+    if (skipped.length) parts.push('ausgelassen: ' + skipped.join(', '));
+    if (o.mood && day.mood != null) parts.push(`Mood: ${MOODS[day.mood][0]} ${day.mood}`);
+    if (o.notes && day.note) parts.push('Note: ' + day.note.trim().replace(/\s*\n\s*/g, ' / '));
+    const hasContent = logs.length || (o.plan && planned.length) || skipped.length || (o.mood && day.mood != null) || (o.notes && day.note);
+    if (!hasContent) continue;
+    const d = parseDay(k), mLabel = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    if (mLabel !== month) { if (lines.length) lines.push(''); lines.push(mLabel); month = mLabel; }
+    lines.push(`${pad(d.getDate())}.${pad(d.getMonth() + 1)} = ${parts.join(' | ')}`);
+  }
+  return lines.join('\n');
+}
+function setListOpt(k, v) { listOpt = { ...listOpt, [k]: v }; prefSetSafe('st-list-opt', listOpt); renderHistory(); }
+function setHistMode(m) { histMode = m; prefSetSafe('st-hist-mode', m); renderHistory(); }
+async function copyList() {
+  const t = listText();
+  try { await navigator.clipboard.writeText(t); toast('Liste kopiert – jetzt in Notizen einfügen'); }
+  catch (e) { shareOrDownload(`substanzen-${todayKey()}.txt`, new Blob([t], { type: 'text/plain' })); }
+}
+function renderList() {
+  header('Verlauf', 'Liste – wie in deinen Notizen', '');
+  const o = listOpt, chk = (k, label) => `<label style="display:flex;align-items:center;gap:6px;color:var(--text);margin:0"><input type="checkbox" style="width:auto" ${o[k] ? 'checked' : ''} onchange="setListOpt('${k}', this.checked)">${label}</label>`;
+  $('#view').innerHTML = `<div class="seg" style="margin-bottom:10px"><button onclick="setHistMode('cal')">Kalender</button><button class="on">Liste</button></div>
+    <div class="seg">${[[7, '7 Tage'], [30, '30 Tage'], [90, '90 Tage'], [0, 'Alles']].map(([r, t]) => `<button class="${o.range === r ? 'on' : ''}" onclick="setListOpt('range', ${r})">${t}</button>`).join('')}</div>
+    <div class="chips" style="margin:10px 0">${chk('plan', 'Plan & offene')}${chk('mood', 'Stimmung')}${chk('notes', 'Journal')}${chk('newest', 'Neueste oben')}</div>
+    <div class="actions" style="margin-top:0"><button class="btn primary" onclick="copyList()">Kopieren</button><button class="btn" onclick="shareOrDownload('substanzen-${todayKey()}.txt', new Blob([listText()], {type:'text/plain'}))">Teilen / Sichern</button></div>
+    <div class="pdftext" style="margin-top:10px;max-height:none;font-family:ui-monospace,Menlo,monospace;font-size:12.5px">${esc(listText()) || 'Noch keine Einträge.'}</div>`;
+}
+
 async function renderHistory() {
+  if (histMode === 'list') return renderList();
   const [y, m] = calMonth.split('-').map(Number);
   const first = new Date(y, m - 1, 1);
   const monthName = first.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
@@ -645,7 +756,7 @@ async function renderHistory() {
   for (const l of monthLogs) { const key = l.name + '|' + l.unit; (totals[key] ||= { name: l.name, unit: l.unit, sum: 0, n: 0, color: colorOf(l) }); totals[key].sum += l.amount || 0; totals[key].n++; }
   const moods = Object.entries(db.days).filter(([k, d]) => k.startsWith(calMonth) && d.mood != null).map(([, d]) => d.mood);
 
-  let html = `<div class="card">${cal}</div>`;
+  let html = `<div class="seg" style="margin-bottom:10px"><button class="on">Kalender</button><button onclick="setHistMode('list')">Liste</button></div><div class="card">${cal}</div>`;
   html += `<h2>Diesen Monat</h2><div class="card">
     <div class="muted">${moods.length ? `Stimmung Ø ${fmtNum(moods.reduce((a, b) => a + b, 0) / moods.length, 1)} an ${moods.length} Tagen` : 'Keine Stimmung erfasst'}</div>
     ${Object.keys(totals).length ? `<table style="margin-top:8px"><tr><th>Was</th><th class="num">Anzahl</th><th class="num">Gesamt</th></tr>
@@ -1018,7 +1129,7 @@ function scheduleReminders() {
         const k = addDays(todayKey(), i), at = parseDay(k);
         at.setHours(hh, mm, 0, 0);
         if (at.getTime() <= now) continue;
-        const open = db.substances.filter(s => isDue(s, k) && logsOn(k).filter(l => l.subId === s.id).length < (s.timesPerDay || 1)).length;
+        const open = db.substances.filter(s => isDue(s, k) && !isHandled(s, k)).length;
         if (open) list.push({ id: 1000 + i, at, title: 'Substance Tracker', body: open === 1 ? 'Für heute ist 1 Eintrag geplant.' : `Für heute sind ${open} Einträge geplant.` });
       }
     }
