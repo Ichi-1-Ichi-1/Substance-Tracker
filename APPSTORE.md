@@ -273,6 +273,14 @@ Stand meines Wissens, vor der Einreichung im App Store gegenprüfen.
 **Lokal bauen (optional, mit Mac):** `npm ci && npm run ios:sync && npx cap open ios`
 ---
 
+## 9b. Sprachen
+
+Die App ist in 15 Sprachen verfügbar: Deutsch, Englisch, Spanisch, Französisch, Italienisch, Portugiesisch, Niederländisch, Polnisch, Türkisch, Russisch, Ukrainisch, Arabisch (rechts-nach-links), Chinesisch (vereinfacht), Japanisch, Koreanisch. Sie folgt automatisch der Gerätesprache.
+
+- In App Store Connect zusätzliche **Lokalisierungen** anlegen. Die Store-Texte gibt es bisher auf DE und EN; für die übrigen Sprachen können sie aus den englischen Texten übersetzt werden.
+- **Vor dem Release:** Warnungen und Abhängigkeitshinweise von Muttersprachlern mit medizinischem Hintergrund gegenlesen lassen. Die Übersetzungen sind sorgfältig gemacht, aber nicht fachlich geprüft.
+- In Xcode unter Project → Info → Localizations die Sprachen eintragen, damit der App Store sie als unterstützt anzeigt.
+
 ## 10. Offene Punkte vor der Einreichung
 
 - [ ] Finalen Namen wählen, auf Markenrechte prüfen (DPMA, EUIPO) und im App Store suchen, ob er frei ist. Ideen: **Stackd**, **Dosr**, **Bioledger**, **Compound**, **Halflife**

@@ -11,6 +11,7 @@ Offline-first web app (PWA) for iPhone: log a substance plan, a daily journal, m
 - **Lexikon:** reference half-lives for ~235 medications, PEDs, peptides, recreational substances and supplements (`substances-db.js`); drives the default after-effect days (≈ 5 half-lives) and an estimated level curve per substance.
 - **Wechselwirkungen:** class-based interaction rules (`interactions.js`: opioids, benzos, alcohol, GHB, gabapentinoids, serotonergics/MAOIs, stimulants, PDE5/nitrates, anticoagulants, QT, CYP inhibitors, liver load, …) checked against everything taken, planned or still active (≈ 5 half-lives). Shown on the day view, live in the entry dialog, and as a combo check in the lexicon. Not exhaustive; not medical advice.
 - **Gewöhnung & Abhängigkeit:** usage-frequency rules per class (`DEPENDENCE_RULES` in `interactions.js`) show dependence/withdrawal alerts on the day view and flag the mood-vs-use trap in trends.
+- **Languages:** 15 UI languages (de, en, es, fr, it, pt, nl, pl, tr, ru, uk, ar [RTL], zh, ja, ko). `i18n.js` picks the device language (switchable under Mehr → Sprache). German texts are the keys (`i18n/keys.js`, generated from `tr()` calls); each `i18n/<lang>.js` lists translations in the same order. Translations were not reviewed by native-speaking medical professionals.
 - **Mehr:** calorie goals, backup (JSON incl. documents) / restore, CSV export, theme.
 
 All data lives only on the device (IndexedDB). No build step; the service worker caches everything so the app runs fully offline after the first load.

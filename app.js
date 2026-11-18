@@ -133,6 +133,7 @@ function dependenceHtml(list, k) {
 }
 
 // Duration until ~97 % is eliminated (5 half-lives).
+const bloodText = e => inBloodHours(e) ? tr('ca.') + ' ' + fmtDur(inBloodHours(e)) : tr('unbekannt');
 const inBloodHours = e => e && e.h ? e.h * 5 : null;
 function fmtDur(h) {
   if (h == null) return tr('unbekannt');
@@ -587,7 +588,7 @@ function editLog(id, presetSub, preset) {
   };
   f.subId.addEventListener('change', () => sync(false)); sync(true);
   // Picking a name used before fills in its last category and unit; known substances show their half-life.
-  const hint = () => { const e = lookup(f.name.value); $('#lexHint').textContent = e ? `${e.name}: ${tr('Halbwertszeit')} ${e.range} · ${tr('im Blut ca.')} ${fmtDur(inBloodHours(e))}` : ''; };
+  const hint = () => { const e = lookup(f.name.value); $('#lexHint').textContent = e ? `${e.name}: ${tr('Halbwertszeit')} ${e.range} · ${tr('Im Blut')}: ${bloodText(e)}` : ''; };
   f.name.addEventListener('input', hint); hint();
   const ixCheck = () => {
     const s = subById(f.subId.value), name = s ? s.name : f.name.value.trim(), t = new Date(f.time.value).getTime();
@@ -1108,7 +1109,7 @@ function renderLexList() {
     <div class="grow"><div class="name">${esc(e.name)} <span class="muted">${CATS[e.cat]}</span></div>
       ${e.aliases.length ? `<div class="muted">${esc(e.aliases.slice(0, 5).join(', '))}</div>` : ''}
       <div style="font-size:14px;margin-top:2px">${tr('Halbwertszeit')}: <b>${esc(e.range)}</b></div>
-      <div style="font-size:14px">${tr('Im Blut')}: <b>${tr('ca.')} ${fmtDur(inBloodHours(e))}</b></div>
+      <div style="font-size:14px">${tr('Im Blut')}: <b>${bloodText(e)}</b></div>
       ${depRuleFor(e) ? `<div style="font-size:14px">${tr('Abhängigkeitspotenzial')}: <b>${esc(depRuleFor(e).potential)}</b></div>` : ''}
       ${e.note ? `<div class="muted">${esc(e.note)}</div>` : ''}</div>
     <button class="btn small" aria-label="${tr('Eintragen')}" onclick="editLog(null, null, {name: ${esc(JSON.stringify(e.name))}, category: '${e.cat}'})">＋</button></div>`).join('')}</div>`
@@ -1122,7 +1123,7 @@ function showLevel(name) {
   const now = Date.now(), logs = db.logs.filter(l => l.name === name && l.amount != null).sort((a, b) => a.time.localeCompare(b.time));
   const lv = levelAt(name, now);
   dlg.innerHTML = `<h3>${esc(name)}</h3>
-    ${e ? `<div class="muted">${tr('Halbwertszeit')} ${esc(e.range)} · ${tr('im Blut ca.')} ${fmtDur(inBloodHours(e))}${e.note ? ' · ' + esc(e.note) : ''}</div>` : `<div class="muted">${tr('Nicht im Lexikon – keine Kurve möglich.')}</div>`}
+    ${e ? `<div class="muted">${tr('Halbwertszeit')} ${esc(e.range)} · ${tr('Im Blut')}: ${bloodText(e)}${e.note ? ' · ' + esc(e.note) : ''}</div>` : `<div class="muted">${tr('Nicht im Lexikon – keine Kurve möglich.')}</div>`}
     ${lv ? `<div class="stat"><div><div class="muted">${tr('Jetzt im Körper (geschätzt)')}</div><div class="v">≈ ${fmtNum(lv.v, lv.v < 10 ? 1 : 0)} ${esc(tr(lv.unit))}</div></div></div>
       <div class="chart" id="lvChart"></div>
       <div class="muted" style="margin-top:6px">${tr('Grobe Schätzung aus deinen Einträgen (einfacher Abbau ab Einnahme, Depot-Aufnahme nicht berücksichtigt).')}</div>` : e && e.h ? `<div class="muted" style="margin-top:8px">${tr('Keine Einträge mit Menge.')}</div>` : ''}

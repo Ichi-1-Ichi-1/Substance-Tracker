@@ -6,7 +6,7 @@ window.SUBSTANCE_DB = [
   // ---- Steroide / PEDs ----
   ['Testosteron Enanthat', 'ped', 108, '4–5 Tage', ['Testosterone Enanthate', 'Testo E', 'Test E'], 'Ester-Freisetzung aus dem Depot'],
   ['Testosteron Cypionat', 'ped', 168, '5–8 Tage', ['Testosterone Cypionate', 'Testo C', 'Test C'], ''],
-  ['Testosteron Propionat', 'ped', 20, '0,8–1 Tag', ['Testosterone Propionate', 'Test P', 'Testo P'], ''],
+  ['Testosteron Propionat', 'ped', 20, '0,8–1 Tage', ['Testosterone Propionate', 'Test P', 'Testo P'], ''],
   ['Testosteron Undecanoat', 'ped', 504, '20–34 Tage', ['Testosterone Undecanoate', 'Nebido', 'Aveed', 'Testo U'], 'Injektion (Depot); oral deutlich kürzer'],
   ['Sustanon 250', 'ped', 180, 'bis 7–9 Tage (längster Ester)', ['Sustanon', 'Omnadren'], 'Mischung aus 4 Estern'],
   ['Testosteron Suspension', 'ped', 3, '2–4 Std.', ['Test Base', 'Testosterone Suspension'], 'ohne Ester'],
