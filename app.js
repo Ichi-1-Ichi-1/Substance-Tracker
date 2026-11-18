@@ -51,14 +51,37 @@ function issuesAmong(names, focus) {
     if (focus && list[i] !== focus && list[j] !== focus) continue;
     const r = pairIssues(list[i], list[j]);
     if (!r.length) continue;
-    const key = [lookup(list[i]).name, lookup(list[j]).name].sort().join('|');
-    if (seen.has(key)) continue;
-    seen.add(key); out.push({ a: list[i], b: list[j], sev: r[0].sev, rules: r });
+    const key = 'ix:' + [lookup(list[i]).name, lookup(list[j]).name].sort().join('|');
+    if (seen.has(key) || isIgnored(key)) continue;
+    seen.add(key); out.push({ a: list[i], b: list[j], sev: r[0].sev, rules: r, key });
   }
   return out.sort((x, y) => y.sev - x.sev);
 }
-function issuesHtml(list) {
-  return list.map(x => `<div class="ix ix${x.sev}"><div class="row"><b class="grow">${SEV[x.sev][0]} ${esc(x.a)} + ${esc(x.b)}</b><span class="muted">${SEV[x.sev][1]}</span></div>
+// Warnings can be hidden for one day or ignored for good (stored with the data, resettable under "Mehr").
+const isIgnored = key => (db.settings.ignoredWarnings || []).includes(key);
+const isHiddenOn = (key, k) => (peekDay(k).hiddenWarnings || []).includes(key);
+const closeBtn = (key, k) => k ? `<button class="btn small" aria-label="Hinweis ausblenden" onclick="dismissWarning(${esc(JSON.stringify(key))}, '${k}')">✕</button>` : '';
+function dismissWarning(key, k) {
+  const dlg = $('#dlg'), label = key.slice(key.indexOf(':') + 1).split('|').join(' + ');
+  dlg.onclose = null; dlg.returnValue = '';
+  dlg.innerHTML = `<h3>Hinweis ausblenden</h3><div class="muted">${esc(label)}</div>
+    <div class="actions" style="flex-direction:column;align-items:stretch">
+      <button class="btn primary" id="hwDay">Nur für diesen Tag</button>
+      <button class="btn" id="hwAll">${key.startsWith('ix:') ? 'Diese Kombination immer ignorieren' : 'Diesen Hinweis immer ignorieren'}</button>
+      <button class="btn" onclick="$('#dlg').close()">Abbrechen</button></div>
+    <div class="muted" style="margin-top:8px">Zurückholen kannst du ausgeblendete Hinweise unter „Mehr“.</div>`;
+  dlg.querySelector('#hwDay').onclick = () => { const d = getDay(k); d.hiddenWarnings = [...new Set([...(d.hiddenWarnings || []), key])]; save(); dlg.close(); render(); };
+  dlg.querySelector('#hwAll').onclick = () => { db.settings.ignoredWarnings = [...new Set([...(db.settings.ignoredWarnings || []), key])]; save(); dlg.close(); render(); toast('Wird nicht mehr angezeigt'); };
+  dlg.showModal();
+}
+function resetWarnings() {
+  db.settings.ignoredWarnings = [];
+  for (const d of Object.values(db.days)) delete d.hiddenWarnings;
+  save(); render(); toast('Alle Hinweise werden wieder angezeigt');
+}
+
+function issuesHtml(list, k) {
+  return list.map(x => `<div class="ix ix${x.sev}"><div class="row"><b class="grow">${SEV[x.sev][0]} ${esc(x.a)} + ${esc(x.b)}</b><span class="muted">${SEV[x.sev][1]}</span>${closeBtn(x.key, k)}</div>
     ${x.rules.map(r => `<div class="muted" style="color:var(--text)">${esc(r.t)}</div>`).join('')}
     ${x.sev === 3 ? `<div class="muted help" style="margin-top:4px">Bei Atemproblemen, Bewusstlosigkeit oder Krampfanfall: <a href="tel:112">112 anrufen</a> · <a href="#" onclick="showHelp();return false">Hilfe</a></div>` : ''}</div>`).join('');
 }
@@ -91,15 +114,17 @@ function dependenceAlerts(k) {
       if (m != null) (used.has(d) ? withM : withoutM).push(m);
     }
     const planned = db.substances.some(s => s.active && s.mode !== 'asneeded' && lookup(s.name) === g.e);
-    out.push({ ...g, r, count, level: Math.max(1, r.level - (planned ? 1 : 0)), planned, moodWith: avg(withM), moodWithout: avg(withoutM) });
+    const key = 'dep:' + g.e.name;
+    if (isIgnored(key)) continue;
+    out.push({ ...g, key, r, count, level: Math.max(1, r.level - (planned ? 1 : 0)), planned, moodWith: avg(withM), moodWithout: avg(withoutM) });
   }
   return out.sort((a, b) => b.level - a.level);
 }
-function dependenceHtml(list) {
+function dependenceHtml(list, k) {
   return list.map(x => {
     const unit = x.r.weeks ? `in ${x.count} der letzten ${x.r.window / 7} Wochen` : `an ${x.count} der letzten ${x.r.window} Tage`;
     const moodTrap = x.moodWith != null && x.moodWithout != null && x.moodWith - x.moodWithout >= 0.5;
-    return `<div class="ix ix${x.level}"><div class="row"><b class="grow">${DEP_ICON[x.level]} ${esc(x.label)}</b><span class="muted">${unit}</span></div>
+    return `<div class="ix ix${x.level}"><div class="row"><b class="grow">${DEP_ICON[x.level]} ${esc(x.label)}</b><span class="muted">${unit}</span>${closeBtn(x.key, k)}</div>
       <div class="muted" style="color:var(--text)">${esc(x.r.text)}</div>
       ${moodTrap ? `<div class="muted" style="color:var(--text);margin-top:4px"><b>Stimmung:</b> Ø ${fmtNum(x.moodWith, 1)} an Konsumtagen, Ø ${fmtNum(x.moodWithout, 1)} an Tagen ohne. Das heißt nicht, dass es dir guttut – bei Gewöhnung fühlen sich die Tage <i>ohne</i> schlechter an (Entzug, Craving).</div>` : ''}
       ${x.planned ? `<div class="muted" style="margin-top:4px">Steht in deinem Plan: Bei ärztlicher Verordnung ist das erwartbar – nicht eigenständig steigern oder absetzen.</div>` : ''}
@@ -368,6 +393,11 @@ async function renderDay() {
   const due = db.substances.filter(s => isDue(s, k));
   let html = '';
 
+  if (isToday && backupDue()) html += `<div class="ix ix1" style="margin-top:12px"><div class="row"><b class="grow">💾 Backup fällig</b>
+      <button class="btn small" aria-label="Später" onclick="prefSet('st-backup-snooze', Date.now() + 3 * 864e5);renderDay()">✕</button></div>
+    <div class="muted" style="color:var(--text)">Seit über einer Woche kein Backup. Alternativ reicht auch der Listen-Export.</div>
+    <div class="actions" style="margin-top:8px"><button class="btn primary small" onclick="exportJson()">Jetzt sichern</button></div></div>`;
+
   // Mood
   html += `<h2>Wie fühlst du dich?</h2><div class="moods">` + MOODS.map(([e, t], i) =>
     `<button class="mood ${day.mood === i ? 'sel' : ''}" onclick="setMood(${i})" aria-label="${i} – ${t}"><span>${e}</span>${i}</button>`).join('') + `</div>`;
@@ -375,9 +405,11 @@ async function renderDay() {
   // Interactions among what is taken, planned or still active on this day
   const dayEnd = isToday ? Date.now() : parseDay(k).getTime() + 86399000;
   const ix = issuesAmong([...logs.map(l => l.name), ...activeNamesAt(dayEnd), ...due.map(s => s.name)]);
-  if (ix.length) html += `<h2>Wechselwirkungen <span class="muted">${ix.length}</span></h2>${issuesHtml(ix)}`;
+  const ixShown = ix.filter(x => !isHiddenOn(x.key, k));
+  if (ixShown.length) html += `<h2>Wechselwirkungen <span class="muted">${ixShown.length}</span></h2>${issuesHtml(ixShown, k)}`;
   const dep = dependenceAlerts(k);
-  if (dep.length) html += `<h2>Gewöhnung & Abhängigkeit</h2>${dependenceHtml(dep)}`;
+  const depShown = dep.filter(x => !isHiddenOn(x.key, k));
+  if (depShown.length) html += `<h2>Gewöhnung & Abhängigkeit</h2>${dependenceHtml(depShown, k)}`;
 
   // Journal
   html += `<h2>Journal</h2><textarea id="note" data-day="${k}" placeholder="Wie war dein Tag? Training, Schlaf, Gedanken, Nebenwirkungen …" oninput="noteChanged(this.value)">${esc(day.note || '')}</textarea>`;
@@ -1180,6 +1212,24 @@ if (NATIVE) {
   });
 }
 
+// ---------- Backup reminder (asked once, off unless the user wants it) ----------
+function askBackupReminder() {
+  const dlg = $('#dlg');
+  dlg.onclose = null; dlg.returnValue = '';
+  dlg.innerHTML = `<h3>Backup-Erinnerung?</h3>
+    <div class="muted">Deine Daten liegen nur auf diesem Gerät – ohne Konto, ohne Cloud. Wenn du die App löschst, ist alles weg. Soll dich die App einmal pro Woche an ein Backup erinnern?</div>
+    <div class="actions"><button class="btn primary" id="brYes">Ja, wöchentlich</button><button class="btn" id="brNo">Nein, nie fragen</button></div>`;
+  const set = v => { prefSet('st-backup-reminder', v); dlg.close(); render(); };
+  dlg.querySelector('#brYes').onclick = () => set(true);
+  dlg.querySelector('#brNo').onclick = () => set(false);
+  dlg.showModal();
+}
+function backupDue() {
+  if (prefGet('st-backup-reminder', null) !== true || !db.logs.length) return false;
+  const last = prefGet('st-last-backup', 0), snooze = prefGet('st-backup-snooze', 0);
+  return Date.now() - last > 7 * 864e5 && Date.now() > snooze;
+}
+
 // ---------- Onboarding, help & legal ----------
 const ONB_KEY = 'halbwert-onboarded-v1';
 function showOnboarding() {
@@ -1243,6 +1293,10 @@ function renderMore() {
       <div class="muted" style="margin-top:6px">Die Mitteilung nennt keine Substanzen – nur die Anzahl der geplanten Einträge.</div>
       <label style="display:flex;align-items:center;gap:8px;color:var(--text);margin:14px 0 0"><input type="checkbox" style="width:auto" ${prefGet('halbwert-lock', false) ? 'checked' : ''} onchange="setAppLock(this.checked)"> App mit Face ID / Code sperren</label>
     </div>`; })() : ''}
+    <h2>Hinweise & Backup</h2><div class="card">
+      <div class="entry row"><div class="grow"><div class="name">Ausgeblendete Warnungen</div><div class="muted">${(db.settings.ignoredWarnings || []).length} dauerhaft ignoriert</div></div><button class="btn small" onclick="resetWarnings()">Zurücksetzen</button></div>
+      <label class="entry" style="display:flex;align-items:center;gap:8px;color:var(--text);margin:0"><input type="checkbox" style="width:auto" ${prefGet('st-backup-reminder', null) === true ? 'checked' : ''} onchange="prefSet('st-backup-reminder', this.checked)"> Wöchentlich an Backup erinnern</label>
+    </div>
     <h2>Hilfe & Infos</h2><div class="card">
       <div class="entry row"><div class="grow"><div class="name">Hilfe & Notfall</div><div class="muted">Notrufnummern, Giftnotruf, Beratung</div></div><button class="btn small" onclick="showHelp()">Öffnen</button></div>
       <div class="entry row"><div class="grow"><div class="name">Über Substance Tracker</div><div class="muted">Zweck, Datenquellen, Grenzen</div></div><a class="btn small" href="support.html">Öffnen</a></div>
@@ -1273,7 +1327,9 @@ async function exportJson() {
   toast('Backup wird erstellt …');
   const files = await allFiles();
   const out = { ...db, files: await Promise.all(files.map(async f => ({ ...fileMeta(f), text: f.text, data: await blobToDataUrl(f.blob) }))) };
-  shareOrDownload(`tracker-backup-${todayKey()}.json`, new Blob([JSON.stringify(out)], { type: 'application/json' }));
+  await shareOrDownload(`tracker-backup-${todayKey()}.json`, new Blob([JSON.stringify(out)], { type: 'application/json' }));
+  prefSet('st-last-backup', Date.now());
+  if (tab === 'day') renderDay();
 }
 function exportCsv() {
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -1329,6 +1385,7 @@ function setTheme(t) {
   let onboarded = false;
   try { onboarded = !!localStorage.getItem(ONB_KEY); } catch (e) {}
   if (!onboarded) showOnboarding();
+  else if (prefGet('st-backup-reminder', null) == null && db.logs.length >= 10) askBackupReminder();
   // Re-render when the app comes back to the foreground on a new day.
   let lastDay = todayKey();
   document.addEventListener('visibilitychange', () => {
