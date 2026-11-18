@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Substance Tracker – About & Support</title>
+<meta name="description" content="Substance Tracker is a private tracking tool for supplements, medications, peptides and more. Purpose, data sources, limits, help numbers and contact.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root { --bg: #f4f5f7; --card: #ffffff; --text: #111827; --muted: #6b7280; --border: #e5e7eb; --accent: #b45309; --sev3: #dc2626; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0b0f17; --card: #151b26; --text: #e5e7eb; --muted: #9ca3af; --border: #263041; --accent: #f59e0b; --sev3: #f87171; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: calc(24px + env(safe-area-inset-top)) 16px 48px; }
+  h1 { font-size: 26px; margin: 8px 0 4px; } h2 { font-size: 18px; margin: 28px 0 6px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin: 16px 0; }
+  .alert { border-left: 4px solid var(--sev3); }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 8px; text-decoration: none; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  td { padding: 6px 0; border-top: 1px solid var(--border); } td:last-child { text-align: right; white-space: nowrap; }
+  details { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 8px 0; }
+  summary { font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">‹ Back to the app</a>
+  <h1>About Substance Tracker</h1>
+  <div class="muted">Private tracking for everything you put into your body</div>
+
+  <div class="card">Substance Tracker is for people who track themselves closely: biohackers, athletes, self-optimizers and anyone taking supplements, vitamins, nootropics, peptides, hormones or medications. The app records <b>what you take, when and how much – and how you feel.</b> Half-lives, level curves and interaction alerts show what is active in your body and where the risks are.</div>
+
+  <div class="card alert"><b>Emergency: 112</b> (EU) · 911 (US/Canada) · 999 (UK) · 000 (Australia). In case of unconsciousness, breathing problems, seizure, chest pain or overheating, call for help immediately and say honestly what was taken.</div>
+
+  <h2>Our principles</h2>
+  <p><b>Data instead of gut feeling.</b> See in black and white what works for you and what doesn't.</p>
+  <p><b>Safety built in.</b> Interaction alerts and emergency numbers, without judgement. The app sells nothing, does not source substances, does not encourage use and gives no dosing recommendations.</p>
+  <p><b>Private by design.</b> No account, no cloud, no tracking. All data stays on your device.</p>
+  <p><b>Honest about limits.</b> Substance Tracker does not replace medical or pharmaceutical advice.</p>
+
+  <h2>Where does the information come from?</h2>
+  <p>Half-lives and interactions are approximate values from publicly available reference information: prescribing information (SmPC), safety warnings from medicines agencies (e.g. EMA, FDA), standard pharmacology literature and established harm-reduction combination charts. The rules are organised by drug class (e.g. opioids, benzodiazepines, MAO inhibitors, stimulants).</p>
+  <p class="muted">Values vary a lot between individuals (age, liver and kidney function, genetics, long-term use, dose). “No warning” does not mean “safe”. The estimated level curve is a simplified model. Translations were created carefully but not reviewed by medical professionals in every language; the German and English texts are authoritative.</p>
+
+  <h2>Help & counselling</h2>
+  <div class="card"><table>
+    <tr><td>Emergency (EU)</td><td><a href="tel:112">112</a></td></tr>
+    <tr><td>Emergency (US / Canada)</td><td><a href="tel:911">911</a></td></tr>
+    <tr><td>Emergency (UK)</td><td><a href="tel:999">999</a></td></tr>
+    <tr><td>Poison control (US)</td><td><a href="tel:18002221222">1-800-222-1222</a></td></tr>
+    <tr><td>Poison control Berlin (DE, 24 h)</td><td><a href="tel:03019240">030 19240</a></td></tr>
+    <tr><td>Tox Info Suisse (CH)</td><td><a href="tel:145">145</a></td></tr>
+  </table></div>
+
+  <h2>FAQ</h2>
+  <details><summary>Where is my data stored?</summary><p>Only on your device. Save a backup regularly via “More → Save backup”, e.g. to iCloud Drive.</p></details>
+  <details><summary>I have a new phone – how do I transfer everything?</summary><p>“Save backup” on the old device, “Load backup” on the new one.</p></details>
+  <details><summary>A substance is missing from the reference.</summary><p>You can log any substance freely. Let us know which one is missing.</p></details>
+  <details><summary>A value or alert seems wrong.</summary><p>Please contact us with a source – we will check and correct it.</p></details>
+
+  <h2>Contact</h2>
+  <p>[NAME / COMPANY] · [CONTACT EMAIL]<br><a href="privacy-en.html">Privacy policy</a></p>
+</main>
+</body>
+</html>

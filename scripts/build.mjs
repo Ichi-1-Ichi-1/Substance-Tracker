@@ -2,7 +2,7 @@
 import { rmSync, mkdirSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
 
-const FILES = ['index.html', 'app.js', 'substances-db.js', 'interactions.js', 'privacy.html', 'support.html',
+const FILES = ['index.html', 'app.js', 'substances-db.js', 'interactions.js', 'i18n.js', 'i18n', 'privacy.html', 'support.html', 'privacy-en.html', 'support-en.html',
   'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-512.png', 'vendor'];
 
 rmSync('www', { recursive: true, force: true });
