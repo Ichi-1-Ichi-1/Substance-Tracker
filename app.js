@@ -404,7 +404,8 @@ async function renderDay() {
     `<button class="mood ${day.mood === i ? 'sel' : ''}" onclick="setMood(${i})" aria-label="${i} – ${t}"><span>${e}</span>${i}</button>`).join('') + `</div>`;
 
   // Interactions among what is taken, planned or still active on this day
-  const dayEnd = isToday ? Date.now() : parseDay(k).getTime() + 86399000;
+  // Today: as of now. Other days: what carries over into that day (as of 0:00) plus what is logged on it.
+  const dayEnd = isToday ? Date.now() : parseDay(k).getTime();
   const ix = issuesAmong([...logs.map(l => l.name), ...activeNamesAt(dayEnd), ...due.map(s => s.name)]);
   const ixShown = ix.filter(x => !isHiddenOn(x.key, k));
   if (ixShown.length) html += `<h2>${tr('Wechselwirkungen')} <span class="muted">${ixShown.length}</span></h2>${issuesHtml(ixShown, k)}`;
@@ -432,7 +433,7 @@ async function renderDay() {
   }
 
   // Still in the system
-  const at = isToday ? Date.now() : parseDay(k).getTime() + 86399000;
+  const at = dayEnd;
   const sys = inSystem(at).filter(x => !logs.some(l => l.name === x.name) && !due.some(s => s.name === x.name));
   if (sys.length) html += `<h2>${tr('Im System')} <span class="muted">${tr('wirkt noch nach')}</span></h2><div class="card">` + sys.map(x => {
     const lv = levelAt(x.name, at);
