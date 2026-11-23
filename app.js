@@ -434,7 +434,8 @@ async function renderDay() {
 
   // Still in the system
   const at = dayEnd;
-  const sys = inSystem(at).filter(x => !logs.some(l => l.name === x.name) && !due.some(s => s.name === x.name));
+  // Shown even on plan days (e.g. weekly depot shots stay visible the day the next dose is due).
+  const sys = inSystem(at).filter(x => !logs.some(l => l.name === x.name));
   if (sys.length) html += `<h2>${tr('Im System')} <span class="muted">${tr('wirkt noch nach')}</span></h2><div class="card">` + sys.map(x => {
     const lv = levelAt(x.name, at);
     return `<div class="entry" onclick="showLevel(${esc(JSON.stringify(x.name))})" style="cursor:pointer"><div class="row"><div class="dot" style="background:${esc(colorOf(x.l))}"></div><div class="grow name">${esc(x.name)}</div>

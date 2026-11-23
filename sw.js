@@ -1,4 +1,4 @@
-const CACHE = 'tracker-v15';
+const CACHE = 'tracker-v16';
 const ASSETS = ['./', './index.html', './app.js', './substances-db.js', './interactions.js', './i18n.js', './i18n/keys.js', './privacy-en.html', './support-en.html', './i18n/en.js', './i18n/es.js', './i18n/fr.js', './i18n/it.js', './i18n/pt.js', './i18n/nl.js', './i18n/pl.js', './i18n/tr.js', './i18n/ru.js', './i18n/uk.js', './i18n/ar.js', './i18n/zh.js', './i18n/ja.js', './i18n/ko.js', './privacy.html', './support.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png', './vendor/pdf.min.js', './vendor/pdf.worker.min.js'];
 
 self.addEventListener('install', e => {
